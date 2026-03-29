@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "pre-commit": true,
+    "lint-on-save": true
+  },
+  "permissions": {
+    "allow": [
+      "npm run dev",
+      "npm run build",
+      "npm run lint",
+      "npm run test",
+      "npx prisma migrate dev",
+      "npx prisma generate",
+      "npx prisma studio"
+    ],
+    "deny": [
+      "npx prisma migrate reset",
+      "DROP TABLE",
+      "rm -rf",
+      "git push --force",
+      "npm publish"
+    ]
+  },
+  "rules": {
+    "always_active": ["api.md", "database.md"],
+    "context_dependent": ["frontend.md"]
+  }
+}
