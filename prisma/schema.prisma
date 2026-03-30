@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../app/generated/prisma"
@@ -10,4 +5,149 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  name           String?
+  role           String         @default("MEMBER")
+  createdAt      DateTime       @default(now())
+  comments       Comment[]
+  upvotes        Upvote[]
+  ideaActivities IdeaActivity[]
+  notifications  Notification[]
+  settings       Settings?
+  contextDocs    ContextDoc[]
+}
+
+model Brief {
+  id            String        @id @default(cuid())
+  date          DateTime      @default(now())
+  focusArea     String        @default("")
+  rawSources    String        @default("[]")
+  generatedAt   DateTime      @default(now())
+  status        String        @default("PENDING")
+  developments  Development[]
+  patternBriefs PatternBrief[]
+}
+
+model Development {
+  id                String    @id @default(cuid())
+  briefId           String
+  brief             Brief     @relation(fields: [briefId], references: [id])
+  title             String
+  summary           String
+  sourceUrl         String    @default("")
+  scores            String    @default("{}")
+  rank              Int       @default(0)
+  whichTeam         String    @default("")
+  fitInFello        String    @default("")
+  prototypeThis     String    @default("")
+  ignoreConsequence String    @default("")
+  ideas             Idea[]
+  comments          Comment[]
+  upvotes           Upvote[]
+}
+
+model Idea {
+  id            String       @id @default(cuid())
+  developmentId String
+  development   Development  @relation(fields: [developmentId], references: [id])
+  type          String
+  text          String
+  status        String       @default("GENERATED")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  activities    IdeaActivity[]
+}
+
+model IdeaActivity {
+  id         String   @id @default(cuid())
+  ideaId     String
+  idea       Idea     @relation(fields: [ideaId], references: [id])
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  fromStatus String
+  toStatus   String
+  comment    String   @default("")
+  createdAt  DateTime @default(now())
+}
+
+model Comment {
+  id            String      @id @default(cuid())
+  developmentId String
+  development   Development @relation(fields: [developmentId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  text          String
+  createdAt     DateTime    @default(now())
+}
+
+model Upvote {
+  id            String      @id @default(cuid())
+  developmentId String
+  development   Development @relation(fields: [developmentId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@unique([developmentId, userId])
+}
+
+model Source {
+  id          String    @id @default(cuid())
+  type        String
+  url         String
+  label       String
+  active      Boolean   @default(true)
+  lastFetched DateTime?
+}
+
+model ContextDoc {
+  id        String   @id @default(cuid())
+  type      String
+  content   String
+  updatedAt DateTime @updatedAt
+  updatedBy String
+  user      User     @relation(fields: [updatedBy], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Settings {
+  id               String  @id @default(cuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id])
+  briefTime        String  @default("08:00")
+  timezone         String  @default("America/New_York")
+  emailDigest      Boolean @default(true)
+  emailRecipients  String  @default("[]")
+}
+
+model Pattern {
+  id           String         @id @default(cuid())
+  theme        String
+  frequency    Int            @default(1)
+  firstSeen    DateTime       @default(now())
+  lastSeen     DateTime       @updatedAt
+  briefIds     PatternBrief[]
+}
+
+model PatternBrief {
+  id        String  @id @default(cuid())
+  patternId String
+  pattern   Pattern @relation(fields: [patternId], references: [id])
+  briefId   String
+  brief     Brief   @relation(fields: [briefId], references: [id])
+
+  @@unique([patternId, briefId])
 }

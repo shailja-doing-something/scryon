@@ -22,18 +22,61 @@ interface Settings {
   emailRecipients: string;
 }
 
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="relative flex-shrink-0 w-11 h-6 rounded-full transition-all duration-300 focus:outline-none"
+      style={{
+        background: checked
+          ? "linear-gradient(135deg, #7B5CF0, #A78BFA)"
+          : "#2A2A45",
+        boxShadow: checked ? "0 0 12px rgba(123,92,240,0.4)" : "none",
+      }}
+    >
+      <span
+        className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-300"
+        style={{ transform: checked ? "translateX(22px)" : "translateX(2px)" }}
+      />
+    </button>
+  );
+}
+
+function SettingRow({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-6 py-5" style={{ borderBottom: "1px solid #1E1E35" }}>
+      <div className="flex-1">
+        <p className="text-sm font-semibold text-hi">{label}</p>
+        {description && <p className="text-xs text-lo mt-0.5">{description}</p>}
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  );
+}
+
 export function SettingsClient({ settings: initial }: { settings: Settings }) {
   const [settings, setSettings] = useState({
     ...initial,
     emailRecipients: (JSON.parse(initial.emailRecipients) as string[]).join(", "),
   });
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMsg("");
+    setMsg(null);
 
     const recipients = settings.emailRecipients
       .split(",")
@@ -51,115 +94,139 @@ export function SettingsClient({ settings: initial }: { settings: Settings }) {
       }),
     });
 
-    setMsg(res.ok ? "Settings saved!" : "Failed to save");
-    setTimeout(() => setMsg(""), 2000);
+    setMsg({ text: res.ok ? "Settings saved!" : "Failed to save", ok: res.ok });
+    setTimeout(() => setMsg(null), 2500);
     setSaving(false);
   }
 
-  const inputCls = "text-sm px-3 py-2 bg-elevated border border-rim rounded-lg text-hi placeholder-lo focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors";
-
   return (
-    <div className="space-y-6 max-w-xl">
-      <div>
+    <div className="space-y-7 max-w-2xl">
+      {/* Header */}
+      <div className="animate-fade-up">
         <h1 className="text-2xl font-bold text-hi">Settings</h1>
-        <p className="text-sm text-mid mt-1">Configure your Scryon preferences</p>
+        <p className="text-sm text-mid mt-1">Configure your Scryon intelligence pipeline</p>
       </div>
 
-      <form onSubmit={handleSave} className="bg-surface border border-rim rounded-2xl p-6 space-y-6">
-        {/* Brief time */}
-        <div>
-          <label className="block text-xs font-semibold text-mid uppercase tracking-wider mb-2">
-            Brief Generation Time
-          </label>
-          <input
-            type="time"
-            value={settings.briefTime}
-            onChange={(e) => setSettings((s) => ({ ...s, briefTime: e.target.value }))}
-            className={inputCls}
-            style={{ colorScheme: "dark" }}
-          />
-          <p className="text-xs text-lo mt-1.5">
-            Railway cron will hit the API at this time daily
-          </p>
-        </div>
-
-        {/* Timezone */}
-        <div>
-          <label className="block text-xs font-semibold text-mid uppercase tracking-wider mb-2">
-            Timezone
-          </label>
-          <select
-            value={settings.timezone}
-            onChange={(e) => setSettings((s) => ({ ...s, timezone: e.target.value }))}
-            className={`${inputCls} w-full max-w-xs cursor-pointer`}
-            style={{ background: "#16162A" }}
-          >
-            {TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>{tz}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Email digest */}
-        <div>
-          <label className="flex items-center gap-3 cursor-pointer group">
-            <div className="relative">
-              <input
-                type="checkbox"
-                checked={settings.emailDigest}
-                onChange={(e) => setSettings((s) => ({ ...s, emailDigest: e.target.checked }))}
-                className="sr-only"
-              />
-              <div
-                className="w-10 h-6 rounded-full transition-all"
-                style={{
-                  background: settings.emailDigest
-                    ? "linear-gradient(135deg, #7B5CF0, #A78BFA)"
-                    : "#2A2A45",
-                }}
-              >
-                <div
-                  className="absolute top-1 w-4 h-4 rounded-full bg-white transition-transform"
-                  style={{ transform: settings.emailDigest ? "translateX(18px)" : "translateX(4px)" }}
-                />
-              </div>
-            </div>
-            <div>
-              <span className="text-sm font-medium text-hi">Daily email digest</span>
-              <p className="text-xs text-lo">Receive a summary email after each brief</p>
-            </div>
-          </label>
-        </div>
-
-        {/* Email recipients */}
-        {settings.emailDigest && (
-          <div>
-            <label className="block text-xs font-semibold text-mid uppercase tracking-wider mb-2">
-              Email Recipients
-            </label>
-            <input
-              type="text"
-              value={settings.emailRecipients}
-              onChange={(e) => setSettings((s) => ({ ...s, emailRecipients: e.target.value }))}
-              placeholder="email1@fello.com, email2@fello.com"
-              className={`w-full ${inputCls}`}
-            />
-            <p className="text-xs text-lo mt-1.5">Comma-separated email addresses</p>
+      <form onSubmit={handleSave} className="space-y-4 animate-fade-up delay-75">
+        {/* Brief generation */}
+        <div
+          className="rounded-2xl px-6 overflow-hidden"
+          style={{ background: "#0F0F1A", border: "1px solid #2A2A45" }}
+        >
+          {/* Section header */}
+          <div className="py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #1E1E35" }}>
+            <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+                d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <h2 className="text-sm font-semibold text-hi">Intelligence Pipeline</h2>
           </div>
-        )}
 
-        <div className="flex items-center gap-3 pt-2 border-t border-rim">
+          <SettingRow
+            label="Brief Generation Time"
+            description="Railway cron triggers the AI pipeline at this time daily"
+          >
+            <input
+              type="time"
+              value={settings.briefTime}
+              onChange={(e) => setSettings((s) => ({ ...s, briefTime: e.target.value }))}
+              className="input-dark text-sm px-3 py-2 rounded-xl font-mono"
+              style={{ colorScheme: "dark" }}
+            />
+          </SettingRow>
+
+          <SettingRow
+            label="Timezone"
+            description="Used to schedule the daily brief at the right local time"
+          >
+            <select
+              value={settings.timezone}
+              onChange={(e) => setSettings((s) => ({ ...s, timezone: e.target.value }))}
+              className="input-dark text-sm px-3 py-2 rounded-xl cursor-pointer w-52"
+              style={{ background: "#16162A" }}
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz} value={tz}>{tz}</option>
+              ))}
+            </select>
+          </SettingRow>
+        </div>
+
+        {/* Email */}
+        <div
+          className="rounded-2xl px-6 overflow-hidden"
+          style={{ background: "#0F0F1A", border: "1px solid #2A2A45" }}
+        >
+          <div className="py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #1E1E35" }}>
+            <svg className="w-4 h-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            <h2 className="text-sm font-semibold text-hi">Email Digest</h2>
+          </div>
+
+          <SettingRow
+            label="Daily email digest"
+            description="Receive a brief summary after each intelligence run"
+          >
+            <Toggle
+              checked={settings.emailDigest}
+              onChange={(v) => setSettings((s) => ({ ...s, emailDigest: v }))}
+            />
+          </SettingRow>
+
+          {settings.emailDigest && (
+            <div className="py-5 animate-fade-in">
+              <label className="block text-xs font-semibold text-lo uppercase tracking-widest mb-2">
+                Recipients
+              </label>
+              <input
+                type="text"
+                value={settings.emailRecipients}
+                onChange={(e) => setSettings((s) => ({ ...s, emailRecipients: e.target.value }))}
+                placeholder="email1@fello.com, email2@fello.com"
+                className="input-dark w-full text-sm px-4 py-2.5 rounded-xl"
+              />
+              <p className="text-xs text-lo mt-2">Comma-separated email addresses</p>
+            </div>
+          )}
+        </div>
+
+        {/* Save */}
+        <div className="flex items-center gap-4 pt-2">
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition-all"
-            style={{ background: "linear-gradient(135deg, #7B5CF0, #A78BFA)" }}
+            className="btn-primary px-6 py-3 rounded-xl text-sm font-semibold text-white disabled:opacity-40 flex items-center gap-2"
           >
-            {saving ? "Saving…" : "Save Settings"}
+            {saving ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Saving…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                Save Settings
+              </>
+            )}
           </button>
           {msg && (
-            <span className={`text-sm font-medium ${msg.includes("saved") ? "text-ok" : "text-err"}`}>
-              {msg}
+            <span
+              className="text-sm font-medium flex items-center gap-1.5 animate-fade-in"
+              style={{ color: msg.ok ? "#22C55E" : "#EF4444" }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d={msg.ok ? "M5 13l4 4L19 7" : "M6 18L18 6M6 6l12 12"} />
+              </svg>
+              {msg.text}
             </span>
           )}
         </div>
