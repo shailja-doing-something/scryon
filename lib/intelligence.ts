@@ -205,14 +205,20 @@ Respond with valid JSON only. No markdown, no backticks, no explanation. Just th
   return parsed.slice(0, 10);
 }
 
-// STEP 3: Generate per-development recommendations
-async function generateRecommendation(
-  dev: FilteredDevelopment,
+// STEP 3: Generate all recommendations in ONE Gemini call to conserve quota
+async function generateAllRecommendations(
+  devs: FilteredDevelopment[],
   fellaContext: string,
   gtmContext: string
-): Promise<GeneratedRecommendation> {
-  // Each idea has an explicit "type" field — no section-name ambiguity
-  const prompt = `You are Scryon, Fello's senior AI strategist. Analyse this AI development through the lens of Fello's product and GTM team.
+): Promise<GeneratedRecommendation[]> {
+  const devList = devs
+    .map(
+      (d, i) =>
+        `DEVELOPMENT ${i + 1}:\nTitle: ${d.title}\nSummary: ${d.summary}\nSource: ${d.url}`
+    )
+    .join("\n\n");
+
+  const prompt = `You are Scryon, Fello's senior AI strategist. Analyse each AI development below through the lens of Fello's product and GTM team.
 
 FELLO CONTEXT:
 ${fellaContext}
@@ -220,76 +226,83 @@ ${fellaContext}
 GTM AI TEAM CONTEXT:
 ${gtmContext}
 
-AI DEVELOPMENT TO ANALYSE:
-Title: ${dev.title}
-Summary: ${dev.summary}
-Source: ${dev.url}
+DEVELOPMENTS TO ANALYSE:
+${devList}
 
-Return a JSON object with exactly these fields:
+Return a JSON array with one object per development, in the same order. Each object must have exactly these fields:
 {
-  "fitInFello": "A specific paragraph naming the Fello feature, user type, and workflow this touches",
+  "fitInFello": "Paragraph naming Fello feature, user type, and workflow this touches",
   "whichTeam": "Product",
   "ideas": [
-    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build and why, under 30 days" },
-    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build and why, under 30 days" },
-    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build and why, under 30 days" },
-    { "type": "STRATEGIC", "title": "Short bet title", "description": "Higher upside play", "timing": "Q3 2025" },
-    { "type": "STRATEGIC", "title": "Short bet title", "description": "Higher upside play", "timing": "Q4 2025" },
+    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build, under 30 days" },
+    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build, under 30 days" },
+    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build, under 30 days" },
+    { "type": "STRATEGIC", "title": "Short bet title", "description": "Higher upside play", "timing": "Q3 2026" },
+    { "type": "STRATEGIC", "title": "Short bet title", "description": "Higher upside play", "timing": "Q4 2026" },
     { "type": "WILD", "title": "Creative title", "description": "Unexpected 2-sentence pitch" }
   ],
-  "prototypeThis": "One concrete thing to build this week. Name tools, data source, expected output.",
-  "ignoreConsequence": "Realistic competitive consequence if ignored. Who benefits. What is ceded."
+  "prototypeThis": "One concrete thing to build this week with named tools and expected output",
+  "ignoreConsequence": "Realistic consequence if ignored — who benefits, what is ceded"
 }
 
 Rules:
+- Return a JSON array of ${devs.length} objects, one per development, in order
 - "whichTeam" must be exactly one of: "Product", "GTM AI", "Both", "Leadership"
 - "ideas" must contain exactly 6 items: 3 IMMEDIATE, 2 STRATEGIC, 1 WILD — in that order
-- Every idea must have a non-empty "title" and "description"
+- Every idea must have non-empty "title" and "description"
 - Respond with valid JSON only. No markdown, no backticks, no explanation.`;
 
   const raw = await generateContent(prompt);
-  logger.info("Raw recommendation JSON", { title: dev.title, raw: raw.slice(0, 800) });
+  logger.info("Raw batch recommendation JSON (first 1000 chars)", { raw: raw.slice(0, 1000) });
 
-  let parsed: Record<string, unknown>;
+  let parsedArray: Record<string, unknown>[];
   try {
-    parsed = JSON.parse(raw) as Record<string, unknown>;
+    parsedArray = JSON.parse(raw) as Record<string, unknown>[];
+    if (!Array.isArray(parsedArray)) throw new Error("Not an array");
   } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("Failed to parse recommendation");
-    parsed = JSON.parse(match[0]) as Record<string, unknown>;
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error("Failed to parse batch recommendation — no JSON array found");
+    parsedArray = JSON.parse(match[0]) as Record<string, unknown>[];
   }
 
-  const ideasRaw = extractArray(parsed, "ideas", "recommendations", "actionItems", "action_items");
+  return parsedArray.map((parsed, idx) => {
+    const ideasRaw = extractArray(parsed, "ideas", "recommendations", "actionItems", "action_items");
 
-  const ideas: IdeaItem[] = [];
-  for (const item of ideasRaw) {
-    const type = extractString(item, "type").toUpperCase();
-    if (type !== "IMMEDIATE" && type !== "STRATEGIC" && type !== "WILD") continue;
-    const timing = extractString(item, "timing", "timeframe", "time_frame", "horizon");
-    ideas.push({
-      type,
-      title: extractIdeaTitle(item),
-      description: extractIdeaDescription(item),
-      ...(timing ? { timing } : {}),
+    const ideas: IdeaItem[] = [];
+    for (const item of ideasRaw) {
+      const type = extractString(item, "type").toUpperCase();
+      if (type !== "IMMEDIATE" && type !== "STRATEGIC" && type !== "WILD") continue;
+      const timing = extractString(item, "timing", "timeframe", "time_frame", "horizon");
+      ideas.push({
+        type,
+        title: extractIdeaTitle(item),
+        description: extractIdeaDescription(item),
+        ...(timing ? { timing } : {}),
+      });
+    }
+
+    logger.info("Parsed ideas for development", {
+      index: idx,
+      title: devs[idx]?.title,
+      ideasCount: ideas.length,
+      types: ideas.map((i) => i.type),
     });
-  }
 
-  logger.info("Parsed ideas", { title: dev.title, count: ideas.length, types: ideas.map((i) => i.type) });
-
-  return {
-    fitInFello: extractString(parsed, "fitInFello", "fit_in_fello", "fitFello", "fit"),
-    whichTeam: extractString(parsed, "whichTeam", "which_team", "team"),
-    ideas,
-    prototypeThis: extractString(parsed, "prototypeThis", "prototype_this", "prototype", "buildThis", "build_this"),
-    ignoreConsequence: extractString(
-      parsed,
-      "ignoreConsequence",
-      "ignore_consequence",
-      "consequence",
-      "ignoringConsequence",
-      "risk"
-    ),
-  };
+    return {
+      fitInFello: extractString(parsed, "fitInFello", "fit_in_fello", "fitFello", "fit"),
+      whichTeam: extractString(parsed, "whichTeam", "which_team", "team"),
+      ideas,
+      prototypeThis: extractString(parsed, "prototypeThis", "prototype_this", "prototype", "buildThis", "build_this"),
+      ignoreConsequence: extractString(
+        parsed,
+        "ignoreConsequence",
+        "ignore_consequence",
+        "consequence",
+        "ignoringConsequence",
+        "risk"
+      ),
+    };
+  });
 }
 
 // STEP 4: Save to database
@@ -442,22 +455,19 @@ export async function runDailyBrief(focusArea = ""): Promise<string> {
     // Step 2: Filter
     const topDevelopments = await filterDevelopments(candidates);
 
-    // Step 3: Generate recommendations (sequential to respect API limits)
-    const recommendations: GeneratedRecommendation[] = [];
-    for (const dev of topDevelopments) {
-      try {
-        const rec = await generateRecommendation(dev, fellaContext, gtmContext);
-        recommendations.push(rec);
-      } catch (err) {
-        logger.error("Recommendation generation failed", { title: dev.title, error: String(err) });
-        recommendations.push({
-          fitInFello: "",
-          whichTeam: "",
-          ideas: [],
-          prototypeThis: "",
-          ignoreConsequence: "",
-        });
+    // Step 3: Generate all recommendations in a single Gemini call (conserves quota)
+    let recommendations: GeneratedRecommendation[];
+    try {
+      recommendations = await generateAllRecommendations(topDevelopments, fellaContext, gtmContext);
+      // Pad with empty fallbacks if Gemini returned fewer objects than developments
+      while (recommendations.length < topDevelopments.length) {
+        recommendations.push({ fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "" });
       }
+    } catch (err) {
+      logger.error("Batch recommendation generation failed", { error: String(err) });
+      recommendations = topDevelopments.map(() => ({
+        fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "",
+      }));
     }
 
     // Step 4: Save
