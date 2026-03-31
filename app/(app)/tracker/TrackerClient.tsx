@@ -41,6 +41,27 @@ interface Props {
   ideas: Idea[];
 }
 
+// Parse stored text into title + description.
+// New format: "title\ndescription"
+// Legacy format: "title: description"
+function parseIdeaText(text: string): { title: string; description: string } {
+  const newlineIdx = text.indexOf("\n");
+  if (newlineIdx !== -1) {
+    return {
+      title: text.slice(0, newlineIdx).trim(),
+      description: text.slice(newlineIdx + 1).trim(),
+    };
+  }
+  const colonIdx = text.indexOf(": ");
+  if (colonIdx !== -1) {
+    return {
+      title: text.slice(0, colonIdx).trim(),
+      description: text.slice(colonIdx + 2).trim(),
+    };
+  }
+  return { title: text.trim(), description: "" };
+}
+
 export function TrackerClient({ ideas: initialIdeas }: Props) {
   const [ideas, setIdeas] = useState(initialIdeas);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -128,6 +149,7 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
                   >
                     {col.ideas.map((idea, index) => {
                       const ts = TYPE_STYLES[idea.type] ?? { bg: "rgba(85,85,122,0.1)", text: "#8888AA", label: idea.type };
+                      const { title, description } = parseIdeaText(idea.text);
                       return (
                         <Draggable key={idea.id} draggableId={idea.id} index={index}>
                           {(drag, dragSnapshot) => (
@@ -152,9 +174,16 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
                               >
                                 {ts.label}
                               </span>
-                              <p className="text-xs text-mid leading-snug line-clamp-3 mt-2">
-                                {idea.text}
-                              </p>
+                              {title && (
+                                <p className="text-xs font-semibold text-hi leading-snug mt-2 line-clamp-2">
+                                  {title}
+                                </p>
+                              )}
+                              {description && (
+                                <p className="text-[11px] text-mid leading-snug line-clamp-2 mt-1">
+                                  {description}
+                                </p>
+                              )}
                               <p className="text-[10px] text-lo mt-2 truncate border-t border-rim pt-1.5">
                                 {idea.development.title}
                               </p>
@@ -215,8 +244,17 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
               </span>
             </div>
 
-            {/* Idea text */}
-            <p className="text-sm text-mid leading-relaxed">{expanded.text}</p>
+            {/* Idea title + description */}
+            {(() => {
+              const { title, description } = parseIdeaText(expanded.text);
+              return (
+                <>
+                  {title && <p className="text-sm font-semibold text-hi leading-snug">{title}</p>}
+                  {description && <p className="text-sm text-mid leading-relaxed">{description}</p>}
+                  {!title && !description && <p className="text-sm text-mid leading-relaxed">{expanded.text}</p>}
+                </>
+              );
+            })()}
 
             {/* Source */}
             <div

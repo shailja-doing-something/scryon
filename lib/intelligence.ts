@@ -33,6 +33,39 @@ interface GeneratedRecommendation {
   ignoreConsequence: string;
 }
 
+// Robust field extractors to handle camelCase and snake_case from Gemini
+function extractString(obj: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const val = obj[key];
+    if (typeof val === "string" && val.trim()) return val.trim();
+  }
+  return "";
+}
+
+function extractArray(obj: Record<string, unknown>, ...keys: string[]): Record<string, unknown>[] {
+  for (const key of keys) {
+    const val = obj[key];
+    if (Array.isArray(val)) return val as Record<string, unknown>[];
+  }
+  return [];
+}
+
+function extractObject(obj: Record<string, unknown>, ...keys: string[]): Record<string, unknown> | null {
+  for (const key of keys) {
+    const val = obj[key];
+    if (val && typeof val === "object" && !Array.isArray(val)) return val as Record<string, unknown>;
+  }
+  return null;
+}
+
+function extractIdeaTitle(idea: Record<string, unknown>): string {
+  return extractString(idea, "title", "name", "heading", "action", "idea", "label");
+}
+
+function extractIdeaDescription(idea: Record<string, unknown>): string {
+  return extractString(idea, "description", "desc", "details", "body", "summary", "text", "content");
+}
+
 // STEP 1: Collect raw AI news from web searches
 async function collectSources(focusArea: string): Promise<RawCandidate[]> {
   const today = new Date().toLocaleDateString("en-US", {
@@ -206,17 +239,83 @@ Generate a structured analysis with these exact fields:
 Respond with valid JSON only. No markdown, no backticks, no explanation. Just the raw JSON object.`;
 
   const raw = await generateContent(prompt);
+  logger.info("Raw recommendation JSON", { title: dev.title, raw: raw.slice(0, 500) });
 
-  let parsed: GeneratedRecommendation;
+  let parsed: Record<string, unknown>;
   try {
-    parsed = JSON.parse(raw) as GeneratedRecommendation;
+    parsed = JSON.parse(raw) as Record<string, unknown>;
   } catch {
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("Failed to parse recommendation");
-    parsed = JSON.parse(match[0]) as GeneratedRecommendation;
+    parsed = JSON.parse(match[0]) as Record<string, unknown>;
   }
 
-  return parsed;
+  // Robust extraction handling both camelCase and snake_case field names
+  const immediateCasesRaw = extractArray(
+    parsed,
+    "immediateCases",
+    "immediate_cases",
+    "immediates",
+    "immediate",
+    "immediateIdeas",
+    "immediate_ideas"
+  );
+
+  const strategicBetsRaw = extractArray(
+    parsed,
+    "strategicBets",
+    "strategic_bets",
+    "strategic",
+    "strategicIdeas",
+    "strategic_ideas",
+    "bets"
+  );
+
+  const wildIdeaRaw = extractObject(
+    parsed,
+    "wildIdea",
+    "wild_idea",
+    "wild",
+    "wildcard",
+    "wildcardIdea",
+    "wildcard_idea"
+  );
+
+  logger.info("Parsed recommendation fields", {
+    title: dev.title,
+    immediateCasesCount: immediateCasesRaw.length,
+    strategicBetsCount: strategicBetsRaw.length,
+    hasWildIdea: !!wildIdeaRaw,
+  });
+
+  return {
+    fitInFello: extractString(parsed, "fitInFello", "fit_in_fello", "fitFello", "fit"),
+    whichTeam: extractString(parsed, "whichTeam", "which_team", "team"),
+    immediateCases: immediateCasesRaw.map((idea) => ({
+      title: extractIdeaTitle(idea),
+      description: extractIdeaDescription(idea),
+    })),
+    strategicBets: strategicBetsRaw.map((bet) => ({
+      title: extractIdeaTitle(bet),
+      description: extractIdeaDescription(bet),
+      timing: extractString(bet, "timing", "timeframe", "time_frame", "horizon"),
+    })),
+    wildIdea: wildIdeaRaw
+      ? {
+          title: extractIdeaTitle(wildIdeaRaw),
+          description: extractIdeaDescription(wildIdeaRaw),
+        }
+      : { title: "", description: "" },
+    prototypeThis: extractString(parsed, "prototypeThis", "prototype_this", "prototype", "buildThis", "build_this"),
+    ignoreConsequence: extractString(
+      parsed,
+      "ignoreConsequence",
+      "ignore_consequence",
+      "consequence",
+      "ignoringConsequence",
+      "risk"
+    ),
+  };
 }
 
 // STEP 4: Save to database
@@ -257,13 +356,16 @@ async function saveBrief(
           },
         });
 
-        // Save immediate ideas
+        // Save immediate ideas — title and description stored as "title\ndescription"
         for (const idea of rec.immediateCases ?? []) {
+          const title = idea.title?.trim() ?? "";
+          const description = idea.description?.trim() ?? "";
+          if (!title && !description) continue;
           await prisma.idea.create({
             data: {
               developmentId: development.id,
               type: "IMMEDIATE",
-              text: `${idea.title}: ${idea.description}`,
+              text: title ? `${title}\n${description}` : description,
               status: "GENERATED",
             },
           });
@@ -271,11 +373,16 @@ async function saveBrief(
 
         // Save strategic bets
         for (const bet of rec.strategicBets ?? []) {
+          const title = bet.title?.trim() ?? "";
+          const description = [bet.description?.trim(), bet.timing?.trim()]
+            .filter(Boolean)
+            .join(" — ");
+          if (!title && !description) continue;
           await prisma.idea.create({
             data: {
               developmentId: development.id,
               type: "STRATEGIC",
-              text: `${bet.title}: ${bet.description}${bet.timing ? ` (${bet.timing})` : ""}`,
+              text: title ? `${title}\n${description}` : description,
               status: "GENERATED",
             },
           });
@@ -283,14 +390,18 @@ async function saveBrief(
 
         // Save wild idea
         if (rec.wildIdea) {
-          await prisma.idea.create({
-            data: {
-              developmentId: development.id,
-              type: "WILD",
-              text: `${rec.wildIdea.title}: ${rec.wildIdea.description}`,
-              status: "GENERATED",
-            },
-          });
+          const title = rec.wildIdea.title?.trim() ?? "";
+          const description = rec.wildIdea.description?.trim() ?? "";
+          if (title || description) {
+            await prisma.idea.create({
+              data: {
+                developmentId: development.id,
+                type: "WILD",
+                text: title ? `${title}\n${description}` : description,
+                status: "GENERATED",
+              },
+            });
+          }
         }
       } catch (err) {
         logger.error("Failed to save development", { title: dev.title, error: String(err) });
