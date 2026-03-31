@@ -23,12 +23,17 @@ interface FilteredDevelopment {
   };
 }
 
+interface IdeaItem {
+  type: "IMMEDIATE" | "STRATEGIC" | "WILD";
+  title: string;
+  description: string;
+  timing?: string;
+}
+
 interface GeneratedRecommendation {
   fitInFello: string;
   whichTeam: string;
-  immediateCases: { title: string; description: string }[];
-  strategicBets: { title: string; description: string; timing: string }[];
-  wildIdea: { title: string; description: string };
+  ideas: IdeaItem[];
   prototypeThis: string;
   ignoreConsequence: string;
 }
@@ -48,14 +53,6 @@ function extractArray(obj: Record<string, unknown>, ...keys: string[]): Record<s
     if (Array.isArray(val)) return val as Record<string, unknown>[];
   }
   return [];
-}
-
-function extractObject(obj: Record<string, unknown>, ...keys: string[]): Record<string, unknown> | null {
-  for (const key of keys) {
-    const val = obj[key];
-    if (val && typeof val === "object" && !Array.isArray(val)) return val as Record<string, unknown>;
-  }
-  return null;
 }
 
 function extractIdeaTitle(idea: Record<string, unknown>): string {
@@ -214,6 +211,7 @@ async function generateRecommendation(
   fellaContext: string,
   gtmContext: string
 ): Promise<GeneratedRecommendation> {
+  // Each idea has an explicit "type" field — no section-name ambiguity
   const prompt = `You are Scryon, Fello's senior AI strategist. Analyse this AI development through the lens of Fello's product and GTM team.
 
 FELLO CONTEXT:
@@ -227,19 +225,30 @@ Title: ${dev.title}
 Summary: ${dev.summary}
 Source: ${dev.url}
 
-Generate a structured analysis with these exact fields:
-1. fitInFello: A specific paragraph naming the Fello feature, user type, and workflow this touches
-2. whichTeam: One of "Product" | "GTM AI" | "Both" | "Leadership" — plus one sentence why
-3. immediateCases: Array of 3 objects with {title, description} — low effort, under 30 days each
-4. strategicBets: Array of 2 objects with {title, description, timing} — higher upside, longer horizon
-5. wildIdea: Object with {title, description} — creative, unexpected 2-sentence pitch
-6. prototypeThis: One concrete thing to build this week. Name tools, data source, expected output
-7. ignoreConsequence: Realistic competitive consequence if ignored. Who benefits. What is ceded.
+Return a JSON object with exactly these fields:
+{
+  "fitInFello": "A specific paragraph naming the Fello feature, user type, and workflow this touches",
+  "whichTeam": "Product",
+  "ideas": [
+    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build and why, under 30 days" },
+    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build and why, under 30 days" },
+    { "type": "IMMEDIATE", "title": "Short action title", "description": "What to build and why, under 30 days" },
+    { "type": "STRATEGIC", "title": "Short bet title", "description": "Higher upside play", "timing": "Q3 2025" },
+    { "type": "STRATEGIC", "title": "Short bet title", "description": "Higher upside play", "timing": "Q4 2025" },
+    { "type": "WILD", "title": "Creative title", "description": "Unexpected 2-sentence pitch" }
+  ],
+  "prototypeThis": "One concrete thing to build this week. Name tools, data source, expected output.",
+  "ignoreConsequence": "Realistic competitive consequence if ignored. Who benefits. What is ceded."
+}
 
-Respond with valid JSON only. No markdown, no backticks, no explanation. Just the raw JSON object.`;
+Rules:
+- "whichTeam" must be exactly one of: "Product", "GTM AI", "Both", "Leadership"
+- "ideas" must contain exactly 6 items: 3 IMMEDIATE, 2 STRATEGIC, 1 WILD — in that order
+- Every idea must have a non-empty "title" and "description"
+- Respond with valid JSON only. No markdown, no backticks, no explanation.`;
 
   const raw = await generateContent(prompt);
-  logger.info("Raw recommendation JSON", { title: dev.title, raw: raw.slice(0, 500) });
+  logger.info("Raw recommendation JSON", { title: dev.title, raw: raw.slice(0, 800) });
 
   let parsed: Record<string, unknown>;
   try {
@@ -250,62 +259,27 @@ Respond with valid JSON only. No markdown, no backticks, no explanation. Just th
     parsed = JSON.parse(match[0]) as Record<string, unknown>;
   }
 
-  // Robust extraction handling both camelCase and snake_case field names
-  const immediateCasesRaw = extractArray(
-    parsed,
-    "immediateCases",
-    "immediate_cases",
-    "immediates",
-    "immediate",
-    "immediateIdeas",
-    "immediate_ideas"
-  );
+  const ideasRaw = extractArray(parsed, "ideas", "recommendations", "actionItems", "action_items");
 
-  const strategicBetsRaw = extractArray(
-    parsed,
-    "strategicBets",
-    "strategic_bets",
-    "strategic",
-    "strategicIdeas",
-    "strategic_ideas",
-    "bets"
-  );
+  const ideas: IdeaItem[] = [];
+  for (const item of ideasRaw) {
+    const type = extractString(item, "type").toUpperCase();
+    if (type !== "IMMEDIATE" && type !== "STRATEGIC" && type !== "WILD") continue;
+    const timing = extractString(item, "timing", "timeframe", "time_frame", "horizon");
+    ideas.push({
+      type,
+      title: extractIdeaTitle(item),
+      description: extractIdeaDescription(item),
+      ...(timing ? { timing } : {}),
+    });
+  }
 
-  const wildIdeaRaw = extractObject(
-    parsed,
-    "wildIdea",
-    "wild_idea",
-    "wild",
-    "wildcard",
-    "wildcardIdea",
-    "wildcard_idea"
-  );
-
-  logger.info("Parsed recommendation fields", {
-    title: dev.title,
-    immediateCasesCount: immediateCasesRaw.length,
-    strategicBetsCount: strategicBetsRaw.length,
-    hasWildIdea: !!wildIdeaRaw,
-  });
+  logger.info("Parsed ideas", { title: dev.title, count: ideas.length, types: ideas.map((i) => i.type) });
 
   return {
     fitInFello: extractString(parsed, "fitInFello", "fit_in_fello", "fitFello", "fit"),
     whichTeam: extractString(parsed, "whichTeam", "which_team", "team"),
-    immediateCases: immediateCasesRaw.map((idea) => ({
-      title: extractIdeaTitle(idea),
-      description: extractIdeaDescription(idea),
-    })),
-    strategicBets: strategicBetsRaw.map((bet) => ({
-      title: extractIdeaTitle(bet),
-      description: extractIdeaDescription(bet),
-      timing: extractString(bet, "timing", "timeframe", "time_frame", "horizon"),
-    })),
-    wildIdea: wildIdeaRaw
-      ? {
-          title: extractIdeaTitle(wildIdeaRaw),
-          description: extractIdeaDescription(wildIdeaRaw),
-        }
-      : { title: "", description: "" },
+    ideas,
     prototypeThis: extractString(parsed, "prototypeThis", "prototype_this", "prototype", "buildThis", "build_this"),
     ignoreConsequence: extractString(
       parsed,
@@ -356,52 +330,20 @@ async function saveBrief(
           },
         });
 
-        // Save immediate ideas — title and description stored as "title\ndescription"
-        for (const idea of rec.immediateCases ?? []) {
+        // Save all ideas — stored as "title\ndescription", type comes directly from each item
+        for (const idea of rec.ideas ?? []) {
           const title = idea.title?.trim() ?? "";
-          const description = idea.description?.trim() ?? "";
+          const descParts = [idea.description?.trim(), idea.timing?.trim()].filter(Boolean);
+          const description = descParts.join(" — ");
           if (!title && !description) continue;
           await prisma.idea.create({
             data: {
               developmentId: development.id,
-              type: "IMMEDIATE",
+              type: idea.type,
               text: title ? `${title}\n${description}` : description,
               status: "GENERATED",
             },
           });
-        }
-
-        // Save strategic bets
-        for (const bet of rec.strategicBets ?? []) {
-          const title = bet.title?.trim() ?? "";
-          const description = [bet.description?.trim(), bet.timing?.trim()]
-            .filter(Boolean)
-            .join(" — ");
-          if (!title && !description) continue;
-          await prisma.idea.create({
-            data: {
-              developmentId: development.id,
-              type: "STRATEGIC",
-              text: title ? `${title}\n${description}` : description,
-              status: "GENERATED",
-            },
-          });
-        }
-
-        // Save wild idea
-        if (rec.wildIdea) {
-          const title = rec.wildIdea.title?.trim() ?? "";
-          const description = rec.wildIdea.description?.trim() ?? "";
-          if (title || description) {
-            await prisma.idea.create({
-              data: {
-                developmentId: development.id,
-                type: "WILD",
-                text: title ? `${title}\n${description}` : description,
-                status: "GENERATED",
-              },
-            });
-          }
         }
       } catch (err) {
         logger.error("Failed to save development", { title: dev.title, error: String(err) });
@@ -511,9 +453,7 @@ export async function runDailyBrief(focusArea = ""): Promise<string> {
         recommendations.push({
           fitInFello: "",
           whichTeam: "",
-          immediateCases: [],
-          strategicBets: [],
-          wildIdea: { title: "", description: "" },
+          ideas: [],
           prototypeThis: "",
           ignoreConsequence: "",
         });
