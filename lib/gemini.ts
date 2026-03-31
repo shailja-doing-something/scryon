@@ -1,23 +1,24 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 
-function getModel() {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  return genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-}
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
 
 export async function generateContent(prompt: string): Promise<string> {
-  const model = getModel();
   let attempts = 0;
   while (attempts < 3) {
     try {
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      return response.text();
+      const message = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 8192,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const block = message.content[0];
+      if (block.type !== "text") throw new Error("Unexpected response type");
+      return block.text;
     } catch (error) {
       attempts++;
       if (attempts === 3) throw error;
       await new Promise((r) => setTimeout(r, 2000));
     }
   }
-  throw new Error("Gemini failed after 3 attempts");
+  throw new Error("Claude failed after 3 attempts");
 }
