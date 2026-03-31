@@ -1,8 +1,5 @@
-import { PrismaClient } from "../app/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
-const prisma = new PrismaClient({ adapter });
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 const FELLO_CONTEXT = `Fello is the #1 AI platform for real estate and mortgage professionals that turns dormant CRM databases into active deal pipelines.
 
@@ -50,55 +47,30 @@ Current focus:
 - Automated competitive monitoring
 - Lead intelligence enrichment workflows`;
 
-async function main() {
-  console.log("Seeding context documents…");
+export async function POST(request: NextRequest) {
+  const secret = request.headers.get("x-seed-secret");
+  if (secret !== process.env.CRON_SECRET) {
+    return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  }
 
   const seedUser = await prisma.user.upsert({
     where: { email: "seed@scryon.internal" },
     update: {},
-    create: {
-      email: "seed@scryon.internal",
-      name: "Seed",
-      role: "OWNER",
-    },
+    create: { email: "seed@scryon.internal", name: "Seed", role: "OWNER" },
   });
 
-  const existingFello = await prisma.contextDoc.findFirst({ where: { type: "FELLO" } });
-  if (existingFello) {
-    await prisma.contextDoc.update({
-      where: { id: existingFello.id },
-      data: { content: FELLO_CONTEXT, updatedBy: seedUser.id },
-    });
-    console.log("Updated FELLO context");
-  } else {
-    await prisma.contextDoc.create({
-      data: { type: "FELLO", content: FELLO_CONTEXT, updatedBy: seedUser.id },
-    });
-    console.log("Created FELLO context");
+  const results: string[] = [];
+
+  for (const [type, content] of [["FELLO", FELLO_CONTEXT], ["GTM", GTM_CONTEXT]] as const) {
+    const existing = await prisma.contextDoc.findFirst({ where: { type } });
+    if (existing) {
+      await prisma.contextDoc.update({ where: { id: existing.id }, data: { content, updatedBy: seedUser.id } });
+      results.push(`Updated ${type}`);
+    } else {
+      await prisma.contextDoc.create({ data: { type, content, updatedBy: seedUser.id } });
+      results.push(`Created ${type}`);
+    }
   }
 
-  const existingGtm = await prisma.contextDoc.findFirst({ where: { type: "GTM" } });
-  if (existingGtm) {
-    await prisma.contextDoc.update({
-      where: { id: existingGtm.id },
-      data: { content: GTM_CONTEXT, updatedBy: seedUser.id },
-    });
-    console.log("Updated GTM context");
-  } else {
-    await prisma.contextDoc.create({
-      data: { type: "GTM", content: GTM_CONTEXT, updatedBy: seedUser.id },
-    });
-    console.log("Created GTM context");
-  }
-
-  console.log("Seeding complete.");
+  return Response.json({ success: true, data: results });
 }
-
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(() => {
-    void prisma.$disconnect();
-  });
