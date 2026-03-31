@@ -97,11 +97,11 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
       className="rounded-2xl overflow-hidden transition-all duration-300"
       style={{
         background: hovered
-          ? "linear-gradient(135deg, rgba(123,92,240,0.05), rgba(15,15,26,1))"
-          : "#0F0F1A",
-        border: `1px solid ${hovered ? "rgba(123,92,240,0.35)" : "#2A2A45"}`,
+          ? `linear-gradient(135deg, rgba(var(--accent-rgb),0.05), var(--color-surface))`
+          : "var(--color-surface)",
+        border: `1px solid ${hovered ? "rgba(var(--accent-rgb),0.35)" : "var(--color-rim)"}`,
         boxShadow: hovered
-          ? "0 8px 32px rgba(123,92,240,0.12), 0 0 0 1px rgba(123,92,240,0.15)"
+          ? "0 8px 32px rgba(var(--accent-rgb),0.12), 0 0 0 1px rgba(var(--accent-rgb),0.15)"
           : "none",
         transform: hovered ? "translateY(-2px)" : "none",
       }}
@@ -147,13 +147,13 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
               <div
                 className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm font-mono"
                 style={{
-                  background: `conic-gradient(#7B5CF0 ${scorePercent * 3.6}deg, rgba(42,42,69,0.8) 0deg)`,
+                  background: `conic-gradient(#7B5CF0 ${scorePercent * 3.6}deg, rgba(var(--rim-rgb),0.8) 0deg)`,
                   padding: "2px",
                 }}
               >
                 <div
                   className="w-full h-full rounded-[10px] flex items-center justify-center"
-                  style={{ background: "#0F0F1A", color: "#A78BFA" }}
+                  style={{ background: "var(--color-surface)", color: "#A78BFA" }}
                 >
                   {scores.weighted.toFixed(1)}
                 </div>
@@ -178,9 +178,9 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
         onClick={() => setExpanded((e) => !e)}
         className="w-full px-5 py-2.5 text-xs flex items-center gap-2 transition-all duration-200"
         style={{
-          borderTop: "1px solid #2A2A45",
-          color: expanded ? "#A78BFA" : "#55557A",
-          background: expanded ? "rgba(123,92,240,0.04)" : "transparent",
+          borderTop: "1px solid var(--color-rim)",
+          color: expanded ? "var(--color-accent-hi)" : "var(--color-lo)",
+          background: expanded ? "rgba(var(--accent-rgb),0.04)" : "transparent",
         }}
       >
         <svg
@@ -192,7 +192,6 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
         </svg>
         <span>{expanded ? "Collapse analysis" : "Show full analysis"}</span>
         <span className="ml-auto flex items-center gap-3">
-          {/* Ideas count */}
           <span className="flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -212,7 +211,10 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
 
       {/* Expanded content */}
       {expanded && (
-        <div className="animate-fade-up px-5 pb-5 space-y-5" style={{ borderTop: "1px solid #1E1E35" }}>
+        <div
+          className="animate-fade-up px-5 pb-5 space-y-5"
+          style={{ borderTop: "1px solid var(--color-elevated)" }}
+        >
           {/* Where it fits */}
           {dev.fitInFello && (
             <section className="pt-5">
@@ -276,10 +278,10 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
           {dev.prototypeThis && (
             <section
               className="rounded-xl p-4 relative overflow-hidden"
-              style={{ background: "rgba(123,92,240,0.06)", border: "1px solid rgba(123,92,240,0.18)" }}
+              style={{ background: "rgba(var(--accent-rgb),0.06)", border: "1px solid rgba(var(--accent-rgb),0.18)" }}
             >
               <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
-                style={{ background: "radial-gradient(circle, rgba(123,92,240,0.1), transparent)" }} />
+                style={{ background: "radial-gradient(circle, rgba(var(--accent-rgb),0.1), transparent)" }} />
               <h4 className="text-xs font-semibold uppercase tracking-widest mb-2 text-accent-hi flex items-center gap-1.5">
                 <span>🚀</span> Prototype This Week
               </h4>
@@ -303,14 +305,17 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
           )}
 
           {/* Actions */}
-          <div className="flex items-center gap-4 pt-2" style={{ borderTop: "1px solid #1E1E35" }}>
+          <div
+            className="flex items-center gap-4 pt-2"
+            style={{ borderTop: "1px solid var(--color-elevated)" }}
+          >
             <button
               onClick={handleUpvote}
               className="flex items-center gap-2 text-sm font-medium transition-all duration-200 px-3 py-1.5 rounded-lg"
               style={{
-                background: upvoted ? "rgba(123,92,240,0.15)" : "transparent",
-                border: `1px solid ${upvoted ? "rgba(123,92,240,0.3)" : "#2A2A45"}`,
-                color: upvoted ? "#A78BFA" : "#55557A",
+                background: upvoted ? "rgba(var(--accent-rgb),0.15)" : "transparent",
+                border: `1px solid ${upvoted ? "rgba(var(--accent-rgb),0.3)" : "var(--color-rim)"}`,
+                color: upvoted ? "var(--color-accent-hi)" : "var(--color-lo)",
               }}
             >
               <svg className="w-3.5 h-3.5" fill={upvoted ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor">
@@ -347,8 +352,8 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
                   key={c.id}
                   className="animate-fade-up rounded-xl px-4 py-3 text-sm"
                   style={{
-                    background: "rgba(22,22,42,0.8)",
-                    border: "1px solid #2A2A45",
+                    background: "var(--color-elevated)",
+                    border: "1px solid var(--color-rim)",
                     animationDelay: `${i * 50}ms`,
                   }}
                 >

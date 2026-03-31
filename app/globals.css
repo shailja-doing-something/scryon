@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-/* ── Design tokens ── */
+/* ══════════════════════════
+   DESIGN TOKENS — DARK (default)
+══════════════════════════ */
 :root {
   --color-canvas:       #080810;
   --color-surface:      #0F0F1A;
@@ -15,11 +17,56 @@
   --color-warn:         #F59E0B;
   --color-err:          #EF4444;
 
+  /* RGB channel vars — used in rgba(var(--*-rgb), alpha) patterns */
+  --canvas-rgb:         8, 8, 16;
+  --surface-rgb:        15, 15, 26;
+  --elevated-rgb:       22, 22, 42;
+  --rim-rgb:            42, 42, 69;
+  --accent-rgb:         123, 92, 240;
+
   --gradient-primary:   linear-gradient(135deg, #7B5CF0, #A78BFA);
   --gradient-card:      linear-gradient(135deg, rgba(123,92,240,0.08), rgba(167,139,250,0.04));
 
   --font-sans:  var(--font-inter), system-ui, sans-serif;
   --font-mono:  var(--font-jetbrains-mono), "JetBrains Mono", monospace;
+}
+
+/* ── Explicit dark class (next-themes sets this) ── */
+html.dark {
+  --color-canvas:       #080810;
+  --color-surface:      #0F0F1A;
+  --color-elevated:     #16162A;
+  --color-rim:          #2A2A45;
+  --color-hi:           #F0F0FF;
+  --color-mid:          #8888AA;
+  --color-lo:           #55557A;
+  --color-accent:       #7B5CF0;
+  --color-accent-hi:    #A78BFA;
+
+  --canvas-rgb:         8, 8, 16;
+  --surface-rgb:        15, 15, 26;
+  --elevated-rgb:       22, 22, 42;
+  --rim-rgb:            42, 42, 69;
+  --accent-rgb:         123, 92, 240;
+}
+
+/* ── Light theme (next-themes sets .light class) ── */
+html.light {
+  --color-canvas:       #F4F3FF;
+  --color-surface:      #FFFFFF;
+  --color-elevated:     #ECEAFF;
+  --color-rim:          #D5D0F5;
+  --color-hi:           #0D0B20;
+  --color-mid:          #4A4580;
+  --color-lo:           #8883BB;
+  --color-accent:       #6B4CE6;
+  --color-accent-hi:    #7B5CF0;
+
+  --canvas-rgb:         244, 243, 255;
+  --surface-rgb:        255, 255, 255;
+  --elevated-rgb:       236, 234, 255;
+  --rim-rgb:            213, 208, 245;
+  --accent-rgb:         107, 76, 230;
 }
 
 /* ── Tailwind v4 theme mapping ── */
@@ -43,6 +90,8 @@
 /* ── Base ── */
 * { box-sizing: border-box; }
 
+html { transition: background-color 0.2s ease, color 0.2s ease; }
+
 body {
   background: var(--color-canvas);
   color: var(--color-hi);
@@ -62,97 +111,81 @@ body {
 }
 
 /* ── Selection ── */
-::selection { background: rgba(123, 92, 240, 0.3); color: var(--color-hi); }
+::selection { background: rgba(var(--accent-rgb), 0.3); color: var(--color-hi); }
 
 /* ══════════════════════════
    ANIMATIONS
 ══════════════════════════ */
 
-/* Score bar fill animation */
 @keyframes score-fill {
   from { width: 0%; opacity: 0; }
   to   { opacity: 1; }
 }
 
-/* Fade up entrance */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Fade in */
 @keyframes fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 
-/* Pulse glow ring */
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(123,92,240,0.4); }
-  50%       { box-shadow: 0 0 0 6px rgba(123,92,240,0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--accent-rgb), 0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(var(--accent-rgb), 0); }
 }
 
-/* Rotating gradient border */
 @keyframes border-spin {
   from { --border-angle: 0deg; }
   to   { --border-angle: 360deg; }
 }
 
-/* Orb float */
 @keyframes orb-float {
   0%, 100% { transform: translateY(0) scale(1); }
   50%       { transform: translateY(-30px) scale(1.04); }
 }
 
-/* Dot pulse (notification badge) */
+@keyframes orb-drift {
+  0%        { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(40px, -20px) scale(1.05); }
+  66%       { transform: translate(-20px, 30px) scale(0.97); }
+  100%      { transform: translate(0, 0) scale(1); }
+}
+
 @keyframes dot-pulse {
   0%, 100% { transform: scale(1); }
   50%       { transform: scale(1.3); }
 }
 
-/* Shimmer */
 @keyframes shimmer {
   0%   { background-position: -200% center; }
   100% { background-position: 200% center; }
 }
 
-/* Slide in from right (drawer) */
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0); opacity: 1; }
 }
 
+@keyframes grid-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.55; }
+}
+
 /* ── Utility classes ── */
 
-.animate-fade-up {
-  animation: fade-up 0.35s ease-out both;
-}
+.animate-fade-up  { animation: fade-up 0.35s ease-out both; }
+.animate-fade-in  { animation: fade-in 0.25s ease-out both; }
+.animate-score    { animation: score-fill 1s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.animate-pulse-glow { animation: pulse-glow 2.5s ease-in-out infinite; }
+.animate-dot-pulse  { animation: dot-pulse 1.5s ease-in-out infinite; }
+.animate-orb        { animation: orb-float 8s ease-in-out infinite; }
+.animate-orb-drift  { animation: orb-drift 18s ease-in-out infinite; }
+.animate-slide-right { animation: slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.animate-grid-pulse  { animation: grid-pulse 6s ease-in-out infinite; }
 
-.animate-fade-in {
-  animation: fade-in 0.25s ease-out both;
-}
-
-.animate-score {
-  animation: score-fill 1s cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2.5s ease-in-out infinite;
-}
-
-.animate-dot-pulse {
-  animation: dot-pulse 1.5s ease-in-out infinite;
-}
-
-.animate-orb {
-  animation: orb-float 8s ease-in-out infinite;
-}
-
-.animate-slide-right {
-  animation: slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-
-/* Stagger delays */
 .delay-75  { animation-delay: 75ms; }
 .delay-150 { animation-delay: 150ms; }
 .delay-200 { animation-delay: 200ms; }
@@ -173,8 +206,8 @@ body {
 }
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 32px rgba(123, 92, 240, 0.15), 0 0 0 1px rgba(123, 92, 240, 0.2);
-  border-color: rgba(123, 92, 240, 0.35) !important;
+  box-shadow: 0 8px 32px rgba(var(--accent-rgb), 0.15), 0 0 0 1px rgba(var(--accent-rgb), 0.2);
+  border-color: rgba(var(--accent-rgb), 0.35) !important;
 }
 
 /* ── Gradient border card ── */
@@ -189,7 +222,7 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(135deg, rgba(123,92,240,0.4), rgba(42,42,69,0.6), rgba(167,139,250,0.2));
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),0.4), rgba(var(--rim-rgb),0.6), rgba(var(--accent-rgb),0.2));
   -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
   -webkit-mask-composite: xor;
@@ -204,13 +237,8 @@ body {
   background: linear-gradient(135deg, #7B5CF0, #A78BFA);
   transition: opacity 0.2s, transform 0.15s;
 }
-.btn-primary:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-.btn-primary:active {
-  transform: translateY(0);
-}
+.btn-primary:hover  { opacity: 0.9; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
 .btn-primary::after {
   content: "";
   position: absolute;
@@ -228,8 +256,8 @@ body {
 }
 .btn-ghost:hover {
   color: var(--color-hi);
-  border-color: rgba(123,92,240,0.4);
-  background: rgba(123,92,240,0.06);
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.06);
 }
 
 /* ── Input ── */
@@ -243,17 +271,26 @@ body {
 .input-dark:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px rgba(123,92,240,0.15);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15);
 }
 
 /* ── Active nav indicator pulse ── */
-.nav-active-dot {
-  animation: pulse-glow 2.5s ease-in-out infinite;
-}
+.nav-active-dot { animation: pulse-glow 2.5s ease-in-out infinite; }
 
 /* ── Orb backgrounds ── */
 .orb {
   border-radius: 50%;
   filter: blur(60px);
   pointer-events: none;
+}
+
+/* ── Theme transition ── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color;
+  transition-duration: 0.2s;
+  transition-timing-function: ease;
+}
+/* Disable transition on elements that should snap immediately */
+.no-theme-transition, .no-theme-transition * {
+  transition: none !important;
 }

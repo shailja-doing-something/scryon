@@ -41,9 +41,6 @@ interface Props {
   ideas: Idea[];
 }
 
-// Parse stored text into title + description.
-// New format: "title\ndescription"
-// Legacy format: "title: description"
 function parseIdeaText(text: string): { title: string; description: string } {
   const newlineIdx = text.indexOf("\n");
   if (newlineIdx !== -1) {
@@ -143,8 +140,8 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
                     style={{
                       background: snapshot.isDraggingOver
                         ? `${col.accent}10`
-                        : "rgba(15,15,26,0.4)",
-                      border: `1px solid ${snapshot.isDraggingOver ? col.accent + "35" : "#2A2A45"}`,
+                        : "rgba(var(--surface-rgb),0.6)",
+                      border: `1px solid ${snapshot.isDraggingOver ? col.accent + "35" : "var(--color-rim)"}`,
                     }}
                   >
                     {col.ideas.map((idea, index) => {
@@ -160,10 +157,10 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
                               className="rounded-xl p-3 mb-2 cursor-pointer transition-all duration-200"
                               style={{
                                 ...drag.draggableProps.style,
-                                background: dragSnapshot.isDragging ? "#1E1E35" : "#0F0F1A",
-                                border: `1px solid ${dragSnapshot.isDragging ? col.accent + "60" : "#2A2A45"}`,
+                                background: dragSnapshot.isDragging ? "var(--color-elevated)" : "var(--color-surface)",
+                                border: `1px solid ${dragSnapshot.isDragging ? col.accent + "60" : "var(--color-rim)"}`,
                                 boxShadow: dragSnapshot.isDragging
-                                  ? `0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px ${col.accent}40`
+                                  ? `0 12px 40px rgba(0,0,0,0.3), 0 0 0 1px ${col.accent}40`
                                   : "none",
                               }}
                               onClick={() => setExpandedId((prev) => (prev === idea.id ? null : idea.id))}
@@ -206,14 +203,18 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
         <div
           className="fixed inset-y-0 right-0 w-96 z-50 overflow-y-auto animate-slide-right"
           style={{
-            background: "#0A0A18",
-            borderLeft: "1px solid #2A2A45",
-            boxShadow: "-24px 0 80px rgba(0,0,0,0.7)",
+            background: "var(--color-canvas)",
+            borderLeft: "1px solid var(--color-rim)",
+            boxShadow: "-24px 0 80px rgba(0,0,0,0.4)",
           }}
         >
           <div
             className="sticky top-0 px-5 py-4 flex items-center justify-between"
-            style={{ background: "rgba(10,10,24,0.95)", backdropFilter: "blur(10px)", borderBottom: "1px solid #2A2A45" }}
+            style={{
+              background: "var(--color-canvas)",
+              backdropFilter: "blur(10px)",
+              borderBottom: "1px solid var(--color-rim)",
+            }}
           >
             <h3 className="font-semibold text-hi text-sm">Idea Detail</h3>
             <button
@@ -238,7 +239,7 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
               })()}
               <span
                 className="text-xs px-2.5 py-1 rounded-full font-medium"
-                style={{ background: "rgba(42,42,69,0.6)", color: "#8888AA", border: "1px solid #2A2A45" }}
+                style={{ background: "rgba(var(--rim-rgb),0.6)", color: "var(--color-mid)", border: "1px solid var(--color-rim)" }}
               >
                 {expanded.status}
               </span>
@@ -259,7 +260,7 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
             {/* Source */}
             <div
               className="rounded-xl px-4 py-3 text-xs"
-              style={{ background: "rgba(22,22,42,0.8)", border: "1px solid #2A2A45" }}
+              style={{ background: "var(--color-elevated)", border: "1px solid var(--color-rim)" }}
             >
               <span className="text-lo">From: </span>
               <span className="text-accent-hi font-medium">{expanded.development.title}</span>
@@ -281,7 +282,7 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
                       <div
                         key={a.id}
                         className="rounded-xl p-3 text-xs"
-                        style={{ background: "rgba(22,22,42,0.8)", border: "1px solid #2A2A45" }}
+                        style={{ background: "var(--color-elevated)", border: "1px solid var(--color-rim)" }}
                       >
                         <p className="text-hi font-medium">{a.user.name ?? a.user.email}</p>
                         <p className="text-mid mt-0.5 flex items-center gap-1.5">
