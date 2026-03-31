@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest) {
       });
       return Response.json({ success: true, data: doc }, { status: 201 });
     }
-  } catch (error) {
+  } catch {
     return Response.json({ success: false, error: "Failed to save context" }, { status: 500 });
   }
 }

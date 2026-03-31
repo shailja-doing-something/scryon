@@ -12,4 +12,6 @@ RUN npm run build
 
 ENV NODE_ENV=production
 
-CMD npx prisma migrate deploy && npm start
+EXPOSE 3000
+
+CMD ["sh", "start.sh"]

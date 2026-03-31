@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       data: { type: body.type, url: body.url, label: body.label, active: true },
     });
     return Response.json({ success: true, data: source }, { status: 201 });
-  } catch (error) {
+  } catch {
     return Response.json({ success: false, error: "Failed to create source" }, { status: 500 });
   }
 }

@@ -28,7 +28,7 @@ export function NotificationBell() {
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchNotifications();
   }, []);
 
