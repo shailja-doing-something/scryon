@@ -64,7 +64,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
   const [showTeams, setShowTeams] = useState<Set<string>>(new Set(TEAMS));
 
   const filteredDevelopments = brief?.developments.filter(
-    (d) => showTeams.has(d.whichTeam) || !d.whichTeam
+    (d) => !d.whichTeam || !TEAMS.includes(d.whichTeam) || showTeams.has(d.whichTeam)
   ) ?? [];
 
   // Compute stats

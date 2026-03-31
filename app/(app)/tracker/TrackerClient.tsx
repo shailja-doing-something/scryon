@@ -137,12 +137,12 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
                               {...drag.dragHandleProps}
                               className="rounded-xl p-3 mb-2 cursor-pointer transition-all duration-200"
                               style={{
+                                ...drag.draggableProps.style,
                                 background: dragSnapshot.isDragging ? "#1E1E35" : "#0F0F1A",
                                 border: `1px solid ${dragSnapshot.isDragging ? col.accent + "60" : "#2A2A45"}`,
                                 boxShadow: dragSnapshot.isDragging
                                   ? `0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px ${col.accent}40`
                                   : "none",
-                                transform: dragSnapshot.isDragging ? "rotate(1.5deg)" : "none",
                               }}
                               onClick={() => setExpandedId((prev) => (prev === idea.id ? null : idea.id))}
                             >
