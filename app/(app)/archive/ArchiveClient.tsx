@@ -25,11 +25,11 @@ function BriefCard({ brief, index }: { brief: Brief; index: number }) {
       className="group block rounded-xl p-5 transition-all duration-300 animate-fade-up"
       style={{
         background: hovered
-          ? `linear-gradient(135deg, rgba(var(--accent-rgb),0.04), var(--color-surface))`
-          : "var(--color-surface)",
-        border: `1px solid ${hovered ? "rgba(var(--accent-rgb),0.4)" : "var(--color-rim)"}`,
+          ? "linear-gradient(135deg, rgba(123,92,240,0.04), #0F0F1A)"
+          : "#0F0F1A",
+        border: `1px solid ${hovered ? "rgba(123,92,240,0.4)" : "#2A2A45"}`,
         transform: hovered ? "translateY(-2px)" : "none",
-        boxShadow: hovered ? "0 8px 32px rgba(var(--accent-rgb),0.1)" : "none",
+        boxShadow: hovered ? "0 8px 32px rgba(123,92,240,0.1)" : "none",
         animationDelay: `${index * 50}ms`,
       }}
       onMouseEnter={() => setHovered(true)}
@@ -39,7 +39,7 @@ function BriefCard({ brief, index }: { brief: Brief; index: number }) {
         <div className="flex items-center gap-4">
           <div
             className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center"
-            style={{ background: "rgba(var(--accent-rgb),0.08)", border: "1px solid rgba(var(--accent-rgb),0.15)" }}
+            style={{ background: "rgba(123,92,240,0.08)", border: "1px solid rgba(123,92,240,0.15)" }}
           >
             <p className="text-lg font-bold font-mono leading-none" style={{ color: "#A78BFA" }}>
               {new Date(brief.date).getDate()}
@@ -97,11 +97,11 @@ export function ArchiveClient({ briefs }: Props) {
       {briefs.length === 0 ? (
         <div
           className="flex flex-col items-center justify-center py-20 rounded-2xl animate-fade-up"
-          style={{ background: "var(--color-surface)", border: "1px dashed var(--color-rim)" }}
+          style={{ background: "#0F0F1A", border: "1px dashed #2A2A45" }}
         >
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: "rgba(var(--accent-rgb),0.08)", border: "1px solid rgba(var(--accent-rgb),0.15)" }}
+            style={{ background: "rgba(123,92,240,0.08)", border: "1px solid rgba(123,92,240,0.15)" }}
           >
             <svg className="w-7 h-7 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}

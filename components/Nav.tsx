@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { useTheme } from "next-themes";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Logo } from "@/components/Logo";
 
@@ -92,39 +91,6 @@ const navLinks = [
   },
 ];
 
-function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  // resolvedTheme is undefined during SSR; undefined !== "light" → dark default
-  const isDark = resolvedTheme !== "light";
-
-  return (
-    <button
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200"
-      style={{
-        background: "rgba(var(--rim-rgb), 0.4)",
-        border: "1px solid var(--color-rim)",
-        color: "var(--color-mid)",
-      }}
-      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-    >
-      {isDark ? (
-        /* Sun icon */
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-        </svg>
-      ) : (
-        /* Moon icon */
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-        </svg>
-      )}
-    </button>
-  );
-}
-
 export function Nav() {
   const pathname = usePathname();
   const { data: session } = useSession();
@@ -136,23 +102,22 @@ export function Nav() {
     <aside
       className="fixed inset-y-0 left-0 z-40 w-60 flex flex-col"
       style={{
-        background: "var(--color-canvas)",
-        borderRight: "1px solid var(--color-rim)",
-        boxShadow: "4px 0 24px rgba(0,0,0,0.2)",
+        background: "#080810",
+        borderRight: "1px solid #2A2A45",
+        boxShadow: "4px 0 24px rgba(0,0,0,0.4)",
       }}
     >
       {/* Top glow orb */}
       <div
         className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-32 pointer-events-none"
-        style={{ background: "radial-gradient(ellipse, rgba(var(--accent-rgb),0.10) 0%, transparent 70%)" }}
+        style={{ background: "radial-gradient(ellipse, rgba(123,92,240,0.12) 0%, transparent 70%)" }}
       />
 
-      {/* Logo + theme toggle */}
-      <div className="relative px-4 py-5 border-b border-rim flex items-center justify-between">
+      {/* Logo */}
+      <div className="relative px-4 py-5 border-b border-rim">
         <Link href="/dashboard" className="block">
           <Logo variant="primary" size={36} />
         </Link>
-        <ThemeToggle />
       </div>
 
       {/* Navigation */}
@@ -167,25 +132,25 @@ export function Nav() {
               style={
                 active
                   ? {
-                      background: "linear-gradient(135deg, rgba(var(--accent-rgb),0.18), rgba(var(--accent-rgb),0.06))",
-                      color: "var(--color-accent-hi)",
+                      background: "linear-gradient(135deg, rgba(123,92,240,0.18), rgba(167,139,250,0.08))",
+                      color: "#A78BFA",
                       animationDelay: `${i * 40}ms`,
                     }
-                  : { color: "var(--color-lo)" }
+                  : { color: "#55557A" }
               }
             >
               {/* Active background glow */}
               {active && (
                 <span
                   className="absolute inset-0 rounded-xl pointer-events-none"
-                  style={{ boxShadow: "inset 0 0 0 1px rgba(var(--accent-rgb),0.25)" }}
+                  style={{ boxShadow: "inset 0 0 0 1px rgba(123,92,240,0.25)" }}
                 />
               )}
 
               {/* Icon */}
               <span
                 style={{
-                  color: active ? "var(--color-accent)" : undefined,
+                  color: active ? "#7B5CF0" : undefined,
                   transition: "color 0.2s",
                 }}
                 className={active ? "" : "group-hover:text-mid transition-colors"}
@@ -194,7 +159,9 @@ export function Nav() {
               </span>
 
               {/* Label */}
-              <span className={active ? "" : "group-hover:text-mid transition-colors"}>
+              <span
+                className={active ? "" : "group-hover:text-mid transition-colors"}
+              >
                 {link.label}
               </span>
 
@@ -202,7 +169,7 @@ export function Nav() {
               {active && (
                 <span
                   className="ml-auto w-1.5 h-1.5 rounded-full nav-active-dot flex-shrink-0"
-                  style={{ background: "var(--color-accent)" }}
+                  style={{ background: "#7B5CF0" }}
                 />
               )}
 
@@ -210,7 +177,7 @@ export function Nav() {
               {!active && (
                 <span
                   className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
-                  style={{ background: "rgba(var(--rim-rgb), 0.5)" }}
+                  style={{ background: "rgba(42,42,69,0.5)" }}
                 />
               )}
             </Link>
@@ -220,7 +187,7 @@ export function Nav() {
 
       {/* Divider */}
       <div className="px-4">
-        <div className="h-px" style={{ background: "linear-gradient(90deg, transparent, var(--color-rim), transparent)" }} />
+        <div className="h-px" style={{ background: "linear-gradient(90deg, transparent, #2A2A45, transparent)" }} />
       </div>
 
       {/* Notifications */}
@@ -234,8 +201,8 @@ export function Nav() {
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer group transition-all duration-200"
           style={{ border: "1px solid transparent" }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(var(--rim-rgb), 0.5)";
-            e.currentTarget.style.borderColor = "var(--color-rim)";
+            e.currentTarget.style.background = "rgba(42,42,69,0.5)";
+            e.currentTarget.style.borderColor = "#2A2A45";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";

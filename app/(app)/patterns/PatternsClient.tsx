@@ -43,11 +43,11 @@ export function PatternsClient({ patterns }: Props) {
       {patterns.length === 0 && (
         <div
           className="flex flex-col items-center justify-center py-20 rounded-2xl animate-fade-up"
-          style={{ background: "var(--color-surface)", border: "1px dashed var(--color-rim)" }}
+          style={{ background: "#0F0F1A", border: "1px dashed #2A2A45" }}
         >
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4"
-            style={{ background: "rgba(var(--accent-rgb),0.08)", border: "1px solid rgba(var(--accent-rgb),0.15)" }}
+            style={{ background: "rgba(123,92,240,0.08)", border: "1px solid rgba(123,92,240,0.15)" }}
           >
             <svg className="w-7 h-7 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
@@ -69,7 +69,7 @@ export function PatternsClient({ patterns }: Props) {
             >
               3+ days
             </span>
-            <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, var(--color-rim), transparent)" }} />
+            <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, #2A2A45, transparent)" }} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {strategy.map((p, i) => (
@@ -89,7 +89,7 @@ export function PatternsClient({ patterns }: Props) {
             >
               2 days
             </span>
-            <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, var(--color-rim), transparent)" }} />
+            <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, #2A2A45, transparent)" }} />
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {emergingPatterns.map((p, i) => (
@@ -103,7 +103,7 @@ export function PatternsClient({ patterns }: Props) {
         <section className="animate-fade-up delay-200">
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-base font-semibold text-hi">One-Off Signals</h2>
-            <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, var(--color-rim), transparent)" }} />
+            <div className="h-px flex-1" style={{ background: "linear-gradient(90deg, #2A2A45, transparent)" }} />
           </div>
           <div className="flex flex-wrap gap-2">
             {oneOffPatterns.map((p) => (
@@ -122,9 +122,9 @@ function OneOffTag({ theme }: { theme: string }) {
     <span
       className="px-3 py-1.5 rounded-xl text-sm transition-all duration-200 cursor-default"
       style={{
-        background: "var(--color-surface)",
-        border: `1px solid ${hovered ? "rgba(var(--accent-rgb),0.3)" : "var(--color-rim)"}`,
-        color: hovered ? "var(--color-accent-hi)" : "var(--color-mid)",
+        background: "#0F0F1A",
+        border: `1px solid ${hovered ? "rgba(123,92,240,0.3)" : "#2A2A45"}`,
+        color: hovered ? "#A78BFA" : "#8888AA",
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -150,8 +150,8 @@ function PatternCard({ pattern, tier, delay }: PatternCardProps) {
     <div
       className="rounded-xl p-5 transition-all duration-300 animate-fade-up card-hover"
       style={{
-        background: "var(--color-surface)",
-        border: "1px solid var(--color-rim)",
+        background: "#0F0F1A",
+        border: "1px solid #2A2A45",
         animationDelay: `${delay}ms`,
       }}
     >
@@ -182,7 +182,7 @@ function PatternCard({ pattern, tier, delay }: PatternCardProps) {
         </div>
       </div>
 
-      <div className="h-1 rounded-full mb-4" style={{ background: "rgba(var(--rim-rgb),0.6)" }}>
+      <div className="h-1 rounded-full mb-4" style={{ background: "rgba(42,42,69,0.6)" }}>
         <div
           className="h-full rounded-full animate-score"
           style={{
