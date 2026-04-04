@@ -1,8 +1,6 @@
 import { Resend } from "resend";
 import { prisma } from "./prisma";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 interface SendResult {
   success: boolean;
   id?: string;
@@ -11,6 +9,7 @@ interface SendResult {
 }
 
 export async function sendBriefDigest(briefId: string): Promise<SendResult> {
+  const resend = new Resend(process.env.RESEND_API_KEY);
   // ── Read settings ──────────────────────────────────────────────
   console.log("[Email] Checking settings for email digest...");
 
