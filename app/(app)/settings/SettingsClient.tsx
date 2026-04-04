@@ -72,6 +72,30 @@ export function SettingsClient({ settings: initial }: { settings: Settings }) {
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [emailMsg, setEmailMsg] = useState<{ text: string; ok: boolean } | null>(null);
+
+  async function handleTestEmail() {
+    setTestingEmail(true);
+    setEmailMsg(null);
+    try {
+      const res = await fetch("/api/test-email");
+      const json = (await res.json()) as { success: boolean; data?: { skipped?: string; id?: string; error?: string } };
+      if (json.success) {
+        const skipped = json.data?.skipped;
+        const text = skipped
+          ? `Skipped: ${skipped}`
+          : `Test email sent! (ID: ${json.data?.id ?? "unknown"})`;
+        setEmailMsg({ text, ok: !skipped });
+      } else {
+        setEmailMsg({ text: json.data?.error ?? "Failed to send test email", ok: false });
+      }
+    } catch {
+      setEmailMsg({ text: "Request failed", ok: false });
+    }
+    setTestingEmail(false);
+    setTimeout(() => setEmailMsg(null), 4000);
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -230,6 +254,48 @@ export function SettingsClient({ settings: initial }: { settings: Settings }) {
             </span>
           )}
         </div>
+
+        {/* Test email button — shown when email digest is enabled */}
+        {settings.emailDigest && (
+          <div className="flex items-center gap-4 pt-1">
+            <button
+              type="button"
+              onClick={handleTestEmail}
+              disabled={testingEmail}
+              className="btn-ghost px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 disabled:opacity-40"
+            >
+              {testingEmail ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  Send Test Email
+                </>
+              )}
+            </button>
+            {emailMsg && (
+              <span
+                className="text-sm font-medium flex items-center gap-1.5 animate-fade-in"
+                style={{ color: emailMsg.ok ? "#22C55E" : "#F59E0B" }}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d={emailMsg.ok ? "M5 13l4 4L19 7" : "M12 9v2m0 4h.01"} />
+                </svg>
+                {emailMsg.text}
+              </span>
+            )}
+          </div>
+        )}
       </form>
     </div>
   );

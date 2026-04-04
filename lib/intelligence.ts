@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { generateContent } from "@/lib/gemini";
 import { logger } from "@/lib/logger";
+import { sendBriefDigest } from "@/lib/email";
 
 interface RawCandidate {
   title: string;
@@ -368,7 +369,7 @@ async function saveBrief(
   }
 }
 
-// STEP 5: Notify users
+// STEP 5: Notify users + send email digest
 async function notifyUsers(briefId: string) {
   try {
     const users = await prisma.user.findMany({ select: { id: true } });
@@ -383,6 +384,19 @@ async function notifyUsers(briefId: string) {
     logger.info("Notifications created", { count: users.length, briefId });
   } catch (err) {
     logger.error("Failed to create notifications", { error: String(err) });
+  }
+
+  try {
+    const result = await sendBriefDigest(briefId);
+    if (result.skipped) {
+      logger.info("Email digest skipped", { reason: result.skipped, briefId });
+    } else if (result.success) {
+      logger.info("Email digest sent", { emailId: result.id, briefId });
+    } else {
+      logger.error("Email digest failed", { error: result.error, briefId });
+    }
+  } catch (err) {
+    logger.error("Email digest threw", { error: String(err), briefId });
   }
 }
 
