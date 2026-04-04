@@ -3,16 +3,16 @@
 import { useState } from "react";
 
 const TIMEZONES = [
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Phoenix",
-  "UTC",
-  "Europe/London",
-  "Europe/Paris",
-  "Asia/Tokyo",
-  "Asia/Singapore",
+  { value: "America/New_York",    label: "America/New_York (ET)" },
+  { value: "America/Chicago",     label: "America/Chicago (CT)" },
+  { value: "America/Denver",      label: "America/Denver (MT)" },
+  { value: "America/Los_Angeles", label: "America/Los_Angeles (PT)" },
+  { value: "Asia/Kolkata",        label: "Asia/Kolkata (IST)" },
+  { value: "Europe/London",       label: "Europe/London (GMT)" },
+  { value: "Europe/Paris",        label: "Europe/Paris (CET)" },
+  { value: "Asia/Singapore",      label: "Asia/Singapore (SGT)" },
+  { value: "Asia/Tokyo",          label: "Asia/Tokyo (JST)" },
+  { value: "Australia/Sydney",    label: "Australia/Sydney (AEST)" },
 ];
 
 interface Settings {
@@ -124,7 +124,7 @@ export function SettingsClient({ settings: initial }: { settings: Settings }) {
 
           <SettingRow
             label="Brief Generation Time"
-            description="Railway cron triggers the AI pipeline at this time daily"
+            description="Brief auto-generates at this time daily. Changes take effect immediately when you save."
           >
             <input
               type="time"
@@ -146,7 +146,7 @@ export function SettingsClient({ settings: initial }: { settings: Settings }) {
               style={{ background: "#16162A" }}
             >
               {TIMEZONES.map((tz) => (
-                <option key={tz} value={tz}>{tz}</option>
+                <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
             </select>
           </SettingRow>

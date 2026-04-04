@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { restartWithNewTime } from "@/lib/scheduler";
 
 export async function GET(_request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -67,6 +68,11 @@ export async function PUT(request: NextRequest) {
       emailRecipients: true,
     },
   });
+
+  // Restart the scheduler immediately with the new time
+  if (body.briefTime !== undefined || body.timezone !== undefined) {
+    restartWithNewTime(settings.briefTime, settings.timezone);
+  }
 
   return Response.json({ success: true, data: settings });
 }
