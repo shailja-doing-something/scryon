@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-function getModel() {
+function getModel(systemInstruction?: string) {
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  return genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+  return genAI.getGenerativeModel({ model: "gemini-2.5-flash", systemInstruction });
 }
 
 export async function generateContent(prompt: string): Promise<string> {
@@ -19,4 +19,17 @@ export async function generateContent(prompt: string): Promise<string> {
     }
   }
   throw new Error("Gemini failed after 3 attempts");
+}
+
+export async function generateChatResponse(
+  systemInstruction: string,
+  history: Array<{ role: "user" | "model"; text: string }>,
+  message: string
+): Promise<string> {
+  const model = getModel(systemInstruction);
+  const chat = model.startChat({
+    history: history.map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
+  });
+  const result = await chat.sendMessage(message);
+  return result.response.text();
 }
