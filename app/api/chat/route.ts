@@ -13,12 +13,27 @@ function ideaTitle(text: string): string {
   return text.split("\n")[0] ?? text;
 }
 
-export async function POST(request: NextRequest) {
+async function resolveUserId(request: NextRequest): Promise<string | null> {
+  // Check Bearer token (extension auth)
+  const authHeader = request.headers.get("Authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7).trim();
+    const expected = process.env.EXTENSION_TOKEN;
+    if (expected && token === expected) {
+      // Return the OWNER user's id for extension requests
+      const owner = await prisma.user.findFirst({ where: { role: "OWNER" }, select: { id: true } });
+      return owner?.id ?? null;
+    }
+  }
+  // Fall back to NextAuth session
   const session = await getServerSession(authOptions);
-  if (!session) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  const user = session?.user as { id?: string } | undefined;
+  return user?.id ?? null;
+}
 
-  const user = session.user as { id?: string };
-  if (!user.id) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+export async function POST(request: NextRequest) {
+  const userId = await resolveUserId(request);
+  if (!userId) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
   const body = (await request.json()) as {
     message: string;
@@ -179,7 +194,7 @@ ${trackerSection}`;
               await prisma.$transaction([
                 prisma.idea.update({ where: { id: ideaId }, data: { status: parsed.newStatus } }),
                 prisma.ideaActivity.create({
-                  data: { ideaId, userId: user.id!, fromStatus: existing.status, toStatus: parsed.newStatus, comment: "Updated via Scryon AI" },
+                  data: { ideaId, userId, fromStatus: existing.status, toStatus: parsed.newStatus, comment: "Updated via Scryon AI" },
                 }),
               ]);
               action = { ideaId, ideaTitle: parsed.ideaTitle, newStatus: parsed.newStatus };
