@@ -116,7 +116,7 @@ export function Nav() {
       {/* Logo */}
       <div className="relative px-4 py-5 border-b border-rim">
         <Link href="/dashboard" className="block">
-          <Logo variant="primary" size={36} />
+          <Logo variant="primary" size="sm" />
         </Link>
       </div>
 

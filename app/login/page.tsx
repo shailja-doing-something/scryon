@@ -73,7 +73,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-sm px-4 animate-fade-up">
         {/* Logo */}
         <div className="flex justify-center mb-10">
-          <Logo variant="primary" size={48} />
+          <Logo variant="primary" size="lg" />
         </div>
 
         {/* Card */}
