@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
+import { Radio, Send, GitMerge, Pencil, File } from "lucide-react";
 
 interface Source {
   id: string;
@@ -11,11 +13,11 @@ interface Source {
   lastFetched: Date | string | null;
 }
 
-const TYPE_META: Record<string, { bg: string; text: string; icon: string }> = {
-  RSS:      { bg: "rgba(245,158,11,0.1)",  text: "#F59E0B", icon: "📡" },
-  TELEGRAM: { bg: "rgba(96,165,250,0.1)",  text: "#60A5FA", icon: "✈️" },
-  GITHUB:   { bg: "rgba(136,136,170,0.1)", text: "#8888AA", icon: "🐙" },
-  MANUAL:   { bg: "rgba(167,139,250,0.1)", text: "#A78BFA", icon: "✏️" },
+const TYPE_META: Record<string, { bg: string; text: string; icon: ReactNode }> = {
+  RSS:      { bg: "rgba(245,158,11,0.1)",  text: "#F59E0B", icon: <Radio size={14} /> },
+  TELEGRAM: { bg: "rgba(96,165,250,0.1)",  text: "#60A5FA", icon: <Send size={14} /> },
+  GITHUB:   { bg: "rgba(136,136,170,0.1)", text: "#8888AA", icon: <GitMerge size={14} /> },
+  MANUAL:   { bg: "rgba(167,139,250,0.1)", text: "#A78BFA", icon: <Pencil size={14} /> },
 };
 
 export function SourcesClient({ sources: initialSources }: { sources: Source[] }) {
@@ -197,7 +199,7 @@ export function SourcesClient({ sources: initialSources }: { sources: Source[] }
         ) : (
           <div className="divide-y" style={{ borderColor: "#1E1E35" }}>
             {sources.map((s, i) => {
-              const m = TYPE_META[s.type] ?? { bg: "rgba(85,85,122,0.1)", text: "#8888AA", icon: "📄" };
+              const m = TYPE_META[s.type] ?? { bg: "rgba(85,85,122,0.1)", text: "#8888AA", icon: <File size={14} /> };
               return (
                 <div
                   key={s.id}

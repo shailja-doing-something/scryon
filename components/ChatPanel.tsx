@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ClipboardList, BarChart2, Zap, RefreshCw } from "lucide-react";
 import { ChatMessageItem } from "./ChatMessage";
 
 export interface ChatMessage {
@@ -21,10 +22,10 @@ const THINKING_PHASES = [
 ];
 
 const QUICK_ACTIONS = [
-  { label: "📋 Brief me", message: "Give me a quick summary of today's brief" },
-  { label: "📊 Top ideas", message: "Which ideas in the tracker are most worth pursuing right now and why?" },
-  { label: "⚡ Standup", message: "Give me my AI standup for today" },
-  { label: "🔄 Regenerate", message: "Regenerate today's brief" },
+  { icon: <ClipboardList size={12} />, label: "Brief me", message: "Give me a quick summary of today's brief" },
+  { icon: <BarChart2 size={12} />, label: "Top ideas", message: "Which ideas in the tracker are most worth pursuing right now and why?" },
+  { icon: <Zap size={12} />, label: "Standup", message: "Give me my AI standup for today" },
+  { icon: <RefreshCw size={12} />, label: "Regenerate", message: "Regenerate today's brief" },
 ];
 
 const WELCOME = "Hi — I'm Scryon, your intelligence analyst. Ask me about today's brief, your ideas, patterns, or tell me to take an action.";
@@ -129,10 +130,11 @@ export function ChatPanel({
           <div className="flex flex-wrap gap-1.5 py-1 animate-fade-in">
             {QUICK_ACTIONS.map((action) => (
               <button key={action.label} onClick={() => onSend(action.message)}
-                className="text-xs px-3 py-1.5 rounded-full transition-all"
+                className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full transition-all"
                 style={{ background: "#16162A", border: "1px solid rgba(123,92,240,0.35)", color: "#A78BFA" }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(123,92,240,0.1)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "#16162A"; }}>
+                {action.icon}
                 {action.label}
               </button>
             ))}

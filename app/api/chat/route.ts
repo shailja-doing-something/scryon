@@ -537,7 +537,7 @@ The user asked: "${message}"
 
 Generate a Slack message using the development data above. Use this exact format:
 
-*🧠 AI Intel from Scryon*
+*AI Intel from Scryon*
 
 *${subject?.title ?? "[Development title]"}*
 [One paragraph — what it is and why it matters for Fello. Max 3 sentences. Write it, don't copy from the data.]

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { BarChart2, Lightbulb, Star, RefreshCw } from "lucide-react";
 import { DevelopmentCard } from "@/components/DevelopmentCard";
 import { formatSlackMessage } from "@/lib/formatter";
 
@@ -208,19 +209,19 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
           {
             label: "Developments",
             value: brief.developments.length,
-            icon: "📊",
+            icon: <BarChart2 size={16} />,
             color: "#7B5CF0",
           },
           {
             label: "Ideas Generated",
             value: totalIdeas,
-            icon: "💡",
+            icon: <Lightbulb size={16} />,
             color: "#A78BFA",
           },
           {
             label: "Avg Score",
             value: avgScore.toFixed(1),
-            icon: "⭐",
+            icon: <Star size={16} />,
             color: "#22C55E",
           },
         ].map((stat) => (
@@ -234,7 +235,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-lo uppercase tracking-wider">{stat.label}</span>
-              <span className="text-base">{stat.icon}</span>
+              <span className="text-lo">{stat.icon}</span>
             </div>
             <p className="text-2xl font-bold font-mono" style={{ color: stat.color }}>
               {stat.value}
@@ -296,7 +297,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
           style={{ background: "#0F0F1A", border: "1px solid #2A2A45" }}
         >
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-sm">🔁</span>
+            <RefreshCw size={14} className="text-lo" />
             <h2 className="text-sm font-semibold text-hi">Pattern Watch</h2>
             <span
               className="text-xs px-2 py-0.5 rounded-full font-medium text-warn"

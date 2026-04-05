@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Building2, TrendingUp } from "lucide-react";
 
 interface Props {
   felloContent: string;
@@ -82,8 +83,8 @@ export function ContextClient({
         style={{ background: "#0F0F1A", border: "1px solid #2A2A45" }}
       >
         {[
-          { id: "fello" as const, label: "Fello Product", icon: "🏢" },
-          { id: "gtm" as const, label: "GTM AI Team", icon: "📈" },
+          { id: "fello" as const, label: "Fello Product", icon: <Building2 size={14} /> },
+          { id: "gtm" as const, label: "GTM AI Team", icon: <TrendingUp size={14} /> },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -95,7 +96,7 @@ export function ContextClient({
                 : { color: "#55557A", border: "1px solid transparent" }
             }
           >
-            <span>{tab.icon}</span>
+            {tab.icon}
             {tab.label}
           </button>
         ))}

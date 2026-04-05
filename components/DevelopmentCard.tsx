@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Zap, Rocket, AlertTriangle } from "lucide-react";
 import { ScoreBar } from "@/components/ScoreBar";
 import { TeamBadge } from "@/components/TeamBadge";
 
@@ -249,7 +250,7 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
               <ul className="space-y-2.5">
                 {strategic.map((idea, i) => (
                   <li key={idea.id} className="flex gap-2.5 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
-                    <span className="mt-1 text-accent-hi flex-shrink-0 text-xs">◆</span>
+                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
                     <p className="text-sm text-mid">{idea.text}</p>
                   </li>
                 ))}
@@ -266,7 +267,7 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
               <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
                 style={{ background: "radial-gradient(circle, rgba(245,158,11,0.1), transparent)" }} />
               <h4 className="text-xs font-semibold uppercase tracking-widest mb-2 text-warn flex items-center gap-1.5">
-                <span>⚡</span> Wild Idea
+                <Zap size={14} /> Wild Idea
               </h4>
               <p className="text-sm text-mid">{wild.text}</p>
             </section>
@@ -281,7 +282,7 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
               <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
                 style={{ background: "radial-gradient(circle, rgba(123,92,240,0.1), transparent)" }} />
               <h4 className="text-xs font-semibold uppercase tracking-widest mb-2 text-accent-hi flex items-center gap-1.5">
-                <span>🚀</span> Prototype This Week
+                <Rocket size={14} /> Prototype This Week
               </h4>
               <p className="text-sm text-mid">{dev.prototypeThis}</p>
             </section>
@@ -296,7 +297,7 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
               <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
                 style={{ background: "radial-gradient(circle, rgba(239,68,68,0.1), transparent)" }} />
               <h4 className="text-xs font-semibold uppercase tracking-widest mb-2 text-err flex items-center gap-1.5">
-                <span>⚠️</span> If We Ignore This
+                <AlertTriangle size={14} /> If We Ignore This
               </h4>
               <p className="text-sm text-mid">{dev.ignoreConsequence}</p>
             </section>

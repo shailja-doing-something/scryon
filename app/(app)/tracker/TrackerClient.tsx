@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { X } from "lucide-react";
 
 const COLUMNS = [
   { id: "GENERATED",   label: "Generated",   accent: "#8888AA", bg: "rgba(85,85,122,0.08)" },
@@ -220,7 +221,7 @@ export function TrackerClient({ ideas: initialIdeas }: Props) {
               onClick={() => setExpandedId(null)}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-lo hover:text-hi hover:bg-elevated transition-all"
             >
-              ✕
+              <X size={14} />
             </button>
           </div>
 
