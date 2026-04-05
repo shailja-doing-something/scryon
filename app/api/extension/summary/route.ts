@@ -1,6 +1,16 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
 function validateToken(request: NextRequest): boolean {
   const authHeader = request.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return false;
@@ -12,7 +22,7 @@ function validateToken(request: NextRequest): boolean {
 
 export async function GET(request: NextRequest) {
   if (!validateToken(request)) {
-    return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    return Response.json({ success: false, error: "Unauthorized" }, { status: 401, headers: CORS });
   }
 
   const today = new Date();
@@ -54,17 +64,20 @@ export async function GET(request: NextRequest) {
   ]);
 
   if (!todayBrief) {
-    return Response.json({
-      success: true,
-      data: {
-        date: today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
-        totalDevelopments: 0,
-        avgScore: 0,
-        topDevelopments: [],
-        ideasInTracker: allIdeasCount,
-        ideasConsidering,
+    return Response.json(
+      {
+        success: true,
+        data: {
+          date: today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+          totalDevelopments: 0,
+          avgScore: 0,
+          topDevelopments: [],
+          ideasInTracker: allIdeasCount,
+          ideasConsidering,
+        },
       },
-    });
+      { headers: CORS }
+    );
   }
 
   const allDevsForAvg = await prisma.development.findMany({
@@ -96,20 +109,23 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  return Response.json({
-    success: true,
-    data: {
-      date: todayBrief.date.toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      }),
-      totalDevelopments: allDevsForAvg.length,
-      avgScore,
-      topDevelopments,
-      ideasInTracker: allIdeasCount,
-      ideasConsidering,
+  return Response.json(
+    {
+      success: true,
+      data: {
+        date: todayBrief.date.toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+        totalDevelopments: allDevsForAvg.length,
+        avgScore,
+        topDevelopments,
+        ideasInTracker: allIdeasCount,
+        ideasConsidering,
+      },
     },
-  });
+    { headers: CORS }
+  );
 }

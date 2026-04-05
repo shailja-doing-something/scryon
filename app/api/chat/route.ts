@@ -7,6 +7,16 @@ import { logger } from "@/lib/logger";
 
 const VALID_STATUSES = ["GENERATED", "CONSIDERING", "PROTOTYPING", "WORKED", "FAILED"];
 
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: CORS });
+}
+
 type TrackerAction = { ideaId: string; ideaTitle: string; newStatus: string };
 
 function ideaTitle(text: string): string {
@@ -33,7 +43,7 @@ async function resolveUserId(request: NextRequest): Promise<string | null> {
 
 export async function POST(request: NextRequest) {
   const userId = await resolveUserId(request);
-  if (!userId) return Response.json({ success: false, error: "Unauthorized" }, { status: 401 });
+  if (!userId) return Response.json({ success: false, error: "Unauthorized" }, { status: 401, headers: CORS });
 
   const body = (await request.json()) as {
     message: string;
@@ -41,7 +51,7 @@ export async function POST(request: NextRequest) {
   };
 
   if (!body.message?.trim()) {
-    return Response.json({ success: false, error: "Message required" }, { status: 400 });
+    return Response.json({ success: false, error: "Message required" }, { status: 400, headers: CORS });
   }
 
   // Load context from DB in parallel
@@ -207,9 +217,9 @@ ${trackerSection}`;
       }
     }
 
-    return Response.json({ success: true, data: { response: responseText, action } });
+    return Response.json({ success: true, data: { response: responseText, action } }, { headers: CORS });
   } catch (error) {
     logger.error("Chat failed", { error: String(error) });
-    return Response.json({ success: false, error: "Failed to get response" }, { status: 500 });
+    return Response.json({ success: false, error: "Failed to get response" }, { status: 500, headers: CORS });
   }
 }
