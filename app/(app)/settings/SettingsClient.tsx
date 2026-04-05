@@ -65,19 +65,8 @@ function SettingRow({
   );
 }
 
-function maskEmails(raw: string): string {
-  return raw
-    .split(",")
-    .map((e) => {
-      const trimmed = e.trim();
-      const at = trimmed.indexOf("@");
-      if (at <= 0) return trimmed;
-      const local = trimmed.slice(0, at);
-      const domain = trimmed.slice(at);
-      const visible = local.slice(0, Math.min(2, local.length));
-      return visible + "•".repeat(Math.max(0, local.length - 2)) + domain;
-    })
-    .join(", ");
+function recipientCount(raw: string): number {
+  return raw.split(",").map((e) => e.trim()).filter(Boolean).length;
 }
 
 export function SettingsClient({ settings: initial }: { settings: Settings }) {
@@ -223,8 +212,10 @@ export function SettingsClient({ settings: initial }: { settings: Settings }) {
                   <p className="text-xs text-lo mt-2">Comma-separated email addresses</p>
                 </>
               ) : (
-                <p className="text-sm text-mid font-mono px-4 py-2.5 rounded-xl" style={{ background: "#16162A" }}>
-                  {maskEmails(settings.emailRecipients) || <span className="text-lo italic">No recipients</span>}
+                <p className="text-sm text-mid px-4 py-2.5 rounded-xl" style={{ background: "#16162A" }}>
+                  {recipientCount(settings.emailRecipients) > 0
+                    ? `${recipientCount(settings.emailRecipients)} recipient${recipientCount(settings.emailRecipients) !== 1 ? "s" : ""} configured`
+                    : <span className="text-lo italic">No recipients</span>}
                 </p>
               )}
             </div>
