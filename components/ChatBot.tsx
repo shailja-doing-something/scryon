@@ -265,9 +265,24 @@ export function ChatBot() {
         >
           <span className="absolute inset-0 rounded-full"
             style={{ animation: "pulseRing 2s ease-out infinite", background: "rgba(123,92,240,0.4)" }} />
-          <svg className="w-5 h-5 text-white relative" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-              d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          {/* Robot face avatar */}
+          <svg className="w-7 h-7 relative" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {/* Antenna */}
+            <rect x="15" y="2" width="2" height="4" rx="1" fill="white" fillOpacity="0.9" />
+            <circle cx="16" cy="2" r="1.5" fill="white" />
+            {/* Head */}
+            <rect x="6" y="7" width="20" height="16" rx="4" fill="white" fillOpacity="0.95" />
+            {/* Eyes */}
+            <rect x="10" y="12" width="4" height="4" rx="1.5" fill="#7B5CF0" />
+            <rect x="18" y="12" width="4" height="4" rx="1.5" fill="#7B5CF0" />
+            {/* Eye shine */}
+            <circle cx="11" cy="13" r="0.8" fill="white" fillOpacity="0.7" />
+            <circle cx="19" cy="13" r="0.8" fill="white" fillOpacity="0.7" />
+            {/* Mouth */}
+            <rect x="11" y="19" width="10" height="2" rx="1" fill="#A78BFA" fillOpacity="0.8" />
+            {/* Ears */}
+            <rect x="3" y="11" width="3" height="5" rx="1.5" fill="white" fillOpacity="0.7" />
+            <rect x="26" y="11" width="3" height="5" rx="1.5" fill="white" fillOpacity="0.7" />
           </svg>
         </button>
       )}
