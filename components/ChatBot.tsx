@@ -35,7 +35,11 @@ export function ChatBot() {
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState("");
   const [thinkingPhase, setThinkingPhase] = useState(0);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voiceEnabled, setVoiceEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("scryon-voice-enabled") === "true";
+  });
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [hasSpeechSupport, setHasSpeechSupport] = useState(false);
@@ -43,14 +47,32 @@ export function ChatBot() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
 
-  // Detect speech support and load voice preference
+  // Detect speech support
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hasTTS = "speechSynthesis" in window;
     const hasSR = "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
     setHasSpeechSupport(hasTTS || hasSR);
-    const saved = localStorage.getItem("scryon-voice-enabled");
-    if (saved === "true") setVoiceEnabled(true);
+  }, []);
+
+  // Load voices — must handle the async voiceschanged event
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    const loadVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      if (v.length > 0) setVoices(v);
+    };
+
+    // Try immediately (works in Firefox and sometimes Chrome)
+    loadVoices();
+
+    // Also listen for the event (required for Chrome)
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null;
+    };
   }, []);
 
   // Initialise speech recognition
@@ -74,7 +96,6 @@ export function ChatBot() {
       setIsListening(false);
       setInputValue((prev) => {
         if (prev.trim()) {
-          // Slight delay so state settles before sending
           setTimeout(() => {
             const val = prev.trim();
             if (val) sendMessage(val);
@@ -100,14 +121,27 @@ export function ChatBot() {
     return () => clearInterval(t);
   }, [loading]);
 
+  // Speak new bot messages — triggered by messages array change
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.role === "assistant" && voiceEnabled) {
+      speak(last.content);
+    }
+  // speak is stable via useCallback with [voices, voiceEnabled] deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages]);
+
   const speak = useCallback((text: string) => {
     if (!voiceEnabled || typeof window === "undefined" || !window.speechSynthesis) return;
+    const cleaned = cleanForSpeech(text);
+    console.log("[TTS] Speaking:", cleaned.slice(0, 50));
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(cleanForSpeech(text));
+    const utterance = new SpeechSynthesisUtterance(cleaned);
     utterance.rate = 1.05;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
-    const voices = window.speechSynthesis.getVoices();
+
     const preferred = voices.find((v) =>
       v.name.includes("Samantha") ||
       v.name.includes("Karen") ||
@@ -116,10 +150,16 @@ export function ChatBot() {
       v.name.includes("Google US English")
     );
     if (preferred) utterance.voice = preferred;
+
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = (e) => {
+      console.error("[TTS] Error:", e);
+      setIsSpeaking(false);
+    };
+
     window.speechSynthesis.speak(utterance);
-  }, [voiceEnabled]);
+  }, [voices, voiceEnabled]);
 
   function toggleVoice() {
     setVoiceEnabled((prev) => {
@@ -182,7 +222,7 @@ export function ChatBot() {
       };
 
       setMessages((prev) => [...prev, botMsg]);
-      speak(content);
+      // Note: speak() is triggered by the messages useEffect above, not called here directly
     } catch {
       setMessages((prev) => [...prev, {
         id: newId(), role: "assistant",
