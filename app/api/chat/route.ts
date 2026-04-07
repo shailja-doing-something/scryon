@@ -17,6 +17,9 @@ const VALID_STATUSES = ["GENERATED", "CONSIDERING", "PROTOTYPING", "WORKED", "FA
 const FORMATTING_INSTRUCTION = `
 Respond conversationally. Do not use headers. Do not copy text from the brief verbatim. Synthesise and give your opinion. Maximum 4 sentences unless the user asked for something detailed. No bullet points unless listing 3 or more distinct items that genuinely need a list. Use contractions. Never start with "Certainly!", "Great question!", or "Based on the data".`;
 
+const truncate = (text: string, chars: number) =>
+  text.length > chars ? text.slice(0, chars) + "..." : text;
+
 // ── Types ─────────────────────────────────────────────────────────────────
 
 type ActionIntent = "MOVE_IDEA" | "REGENERATE" | "ADD_SOURCE" | "SET_FOCUS" | "DRAFT_SLACK" | "STANDUP";
@@ -59,7 +62,6 @@ async function resolveUserId(request: NextRequest): Promise<string | null> {
 function detectIntent(msg: string): Intent {
   const lower = msg.toLowerCase();
 
-  // Action intents — checked first
   if (/\b(move|mark\s+as|update\s+status|change\s+.*\s+to|put\s+.*\s+in|set\s+.*\s+to)\b/.test(lower)) return "MOVE_IDEA";
   if (/\b(regenerate|generate\s+.*\s+brief|refresh\s+.*\s+brief|run\s+.*\s+pipeline|new\s+brief)\b/.test(lower)) return "REGENERATE";
   if (/\b(add\s+.*source|add\s+.*feed|track\s+this|add\s+.*url|add\s+.*rss)\b/.test(lower)) return "ADD_SOURCE";
@@ -67,7 +69,6 @@ function detectIntent(msg: string): Intent {
   if (/\b(draft\s+slack|slack\s+message|write\s+.*slack|share\s+.*idea|slack\s+post)\b/.test(lower)) return "DRAFT_SLACK";
   if (/\b(standup|stand[\s-]up|brief\s+me|morning\s+summary)\b/.test(lower)) return "STANDUP";
 
-  // Query intents — for smart context loading
   if (/\b(today|this brief|development|top development|score|what happened|what came up|what's new|latest)\b/.test(lower)) return "BRIEF_QUESTION";
   if (/\b(idea|tracker|prototype|considering|status|which.*pursue|worth doing|move forward)\b/.test(lower)) return "IDEA_QUESTION";
   if (/\b(trend|pattern|week|last.*brief|history|before|recurring|appeared|come up|keep seeing)\b/.test(lower)) return "PATTERN_QUESTION";
@@ -147,7 +148,6 @@ async function getTrackerCounts() {
   const counts = await prisma.idea.groupBy({ by: ["status"], _count: { id: true } });
   const map: Record<string, number> = {};
   counts.forEach((c) => { map[c.status] = c._count.id; });
-  // Oldest unactioned idea
   const oldest = await prisma.idea.findFirst({
     where: { status: "GENERATED" },
     orderBy: { createdAt: "asc" },
@@ -181,9 +181,10 @@ async function getLastNBriefSummaries(n: number) {
       date: true,
       developments: {
         orderBy: { rank: "asc" },
-        take: 3,
-        select: { title: true, scores: true, whichTeam: true },
+        take: 1,
+        select: { title: true, scores: true },
       },
+      _count: { select: { developments: true } },
     },
   });
 }
@@ -237,7 +238,7 @@ async function loadContextForIntent(message: string, intent: Intent): Promise<Lo
   }
 
   if (intent === "PATTERN_QUESTION" || intent === "CROSS_BRIEF") {
-    const [patterns, recentSummaries] = await Promise.all([getPatterns(), getLastNBriefSummaries(14)]);
+    const [patterns, recentSummaries] = await Promise.all([getPatterns(), getLastNBriefSummaries(7)]);
     return { ...base, patterns, recentSummaries };
   }
 
@@ -250,7 +251,6 @@ async function loadContextForIntent(message: string, intent: Intent): Promise<Lo
     return { ...base, todayBrief, trackerCounts, topPattern };
   }
 
-  // GENERAL, ADD_SOURCE, SET_FOCUS, REGENERATE — base only
   return base;
 }
 
@@ -312,10 +312,11 @@ function extractSourceType(msg: string): string {
 // ── System prompt ─────────────────────────────────────────────────────────
 
 function buildSystemPrompt(ctx: LoadedContext, today: string): string {
-  const felloCtx = ctx.contextDocs.find((d) => d.type === "FELLO")?.content ?? "Not configured.";
-  const gtmCtx = ctx.contextDocs.find((d) => d.type === "GTM")?.content ?? "Not configured.";
+  const felloRaw = ctx.contextDocs.find((d) => d.type === "FELLO")?.content ?? "Not configured.";
+  const gtmRaw = ctx.contextDocs.find((d) => d.type === "GTM")?.content ?? "Not configured.";
+  const felloCtx = truncate(felloRaw, 3200); // ~800 tokens
+  const gtmCtx = truncate(gtmRaw, 2400);     // ~600 tokens
 
-  // Build data sections — only include what was loaded
   const dataSections: string[] = [];
 
   if (ctx.todayStats) {
@@ -331,14 +332,14 @@ function buildSystemPrompt(ctx: LoadedContext, today: string): string {
     const devLines = ctx.todayBrief.developments.map((dev, i) => {
       const scores = JSON.parse(dev.scores || "{}") as Record<string, number>;
       const ideasLines = dev.ideas
-        .map((idea) => `      [${idea.type}] ${ideaTitle(idea.text)} (id:${idea.id}, status:${idea.status})`)
+        .map((idea) => `      [${idea.type}] ${truncate(ideaTitle(idea.text), 100)} (id:${idea.id}, status:${idea.status})`)
         .join("\n");
       return (
         `  ${i + 1}. ${dev.title}\n` +
         `     Team: ${dev.whichTeam} | Scores: ${Object.entries(scores).map(([k, v]) => `${k}=${v}`).join(", ")}\n` +
-        `     Fello fit: ${dev.fitInFello}\n` +
-        `     Prototype: ${dev.prototypeThis}\n` +
-        `     If ignored: ${dev.ignoreConsequence}` +
+        `     Fello fit: ${truncate(dev.fitInFello ?? "", 200)}\n` +
+        `     Prototype: ${truncate(dev.prototypeThis ?? "", 150)}\n` +
+        `     If ignored: ${truncate(dev.ignoreConsequence ?? "", 150)}` +
         (ideasLines ? `\n     Ideas:\n${ideasLines}` : "")
       );
     }).join("\n\n");
@@ -349,7 +350,7 @@ function buildSystemPrompt(ctx: LoadedContext, today: string): string {
     const statusCounts = VALID_STATUSES.map((s) => `${s}:${ctx.ideas!.filter((i) => i.status === s).length}`).join(", ");
     const ideaLines = ctx.ideas.map((idea) => {
       const age = ideaAge(idea.createdAt);
-      return `  [${idea.status}] [${idea.type}] ${ideaTitle(idea.text)} | id:${idea.id} | from: ${idea.development.title} | age: ${age}`;
+      return `  [${idea.status}] [${idea.type}] ${truncate(ideaTitle(idea.text), 100)} | id:${idea.id} | from: ${idea.development.title} | age: ${age}`;
     }).join("\n");
     dataSections.push(`IDEA TRACKER (${ctx.ideas.length} total — ${statusCounts}):\n${ideaLines}`);
   }
@@ -358,14 +359,14 @@ function buildSystemPrompt(ctx: LoadedContext, today: string): string {
     const counts = Object.entries(ctx.trackerCounts.counts).map(([k, v]) => `${k}:${v}`).join(", ");
     const oldest = ctx.trackerCounts.oldest;
     const oldestLine = oldest
-      ? `Oldest unactioned: "${ideaTitle(oldest.text)}" — ${ideaAge(oldest.createdAt)} in Generated`
+      ? `Oldest unactioned: "${truncate(ideaTitle(oldest.text), 100)}" — ${ideaAge(oldest.createdAt)} in Generated`
       : "";
     dataSections.push(`TRACKER COUNTS: ${counts}${oldestLine ? `\n${oldestLine}` : ""}`);
   }
 
   if (ctx.patterns && ctx.patterns.length > 0) {
     const lines = ctx.patterns.map((p) =>
-      `  "${p.theme}" — ${p.frequency}x | first seen: ${p.firstSeen.toLocaleDateString("en-US", { dateStyle: "short" })} | last: ${p.lastSeen.toLocaleDateString("en-US", { dateStyle: "short" })}`
+      `  "${p.theme}" — ${p.frequency}x | first: ${p.firstSeen.toLocaleDateString("en-US", { dateStyle: "short" })} | last: ${p.lastSeen.toLocaleDateString("en-US", { dateStyle: "short" })}`
     ).join("\n");
     dataSections.push(`DETECTED PATTERNS:\n${lines}`);
   }
@@ -376,21 +377,19 @@ function buildSystemPrompt(ctx: LoadedContext, today: string): string {
 
   if (ctx.recentSummaries && ctx.recentSummaries.length > 0) {
     const lines = ctx.recentSummaries.map((b) => {
-      const devSummaries = b.developments.map((d) => {
-        const scores = JSON.parse(d.scores || "{}") as Record<string, number>;
-        return `"${d.title}" (${d.whichTeam}, score:${scores.weighted ?? "?"})`;
-      }).join(", ");
-      return `  ${b.date.toLocaleDateString("en-US", { dateStyle: "medium" })}: ${devSummaries || "no developments"}`;
+      const top = b.developments[0];
+      const topScore = top ? (JSON.parse(top.scores || "{}") as Record<string, number>).weighted ?? "?" : null;
+      return `  ${b.date.toLocaleDateString("en-US", { dateStyle: "medium" })}: ${b._count.developments} devs. Top: "${top?.title ?? "none"}"${topScore !== null ? ` (${topScore})` : ""}`;
     }).join("\n");
-    dataSections.push(`RECENT BRIEFS (last 14 days):\n${lines}`);
+    dataSections.push(`RECENT BRIEFS (last 7 days):\n${lines}`);
   }
 
   if (ctx.slackSubject) {
     const dev = ctx.slackSubject;
     const scores = JSON.parse(dev.scores || "{}") as Record<string, number>;
-    const ideas = dev.ideas.map((i) => `[${i.type}] ${ideaTitle(i.text)}`).join("; ");
+    const ideas = dev.ideas.map((i) => `[${i.type}] ${truncate(ideaTitle(i.text), 100)}`).join("; ");
     dataSections.push(
-      `SUBJECT FOR SLACK DRAFT:\n  Title: ${dev.title}\n  Team: ${dev.whichTeam}\n  Fit: ${dev.fitInFello}\n  Score: ${scores.weighted ?? "?"}\n  Ideas: ${ideas}\n  Prototype: ${dev.prototypeThis}\n  If ignored: ${dev.ignoreConsequence}`
+      `SUBJECT FOR SLACK DRAFT:\n  Title: ${dev.title}\n  Team: ${dev.whichTeam}\n  Fit: ${truncate(dev.fitInFello ?? "", 200)}\n  Score: ${scores.weighted ?? "?"}\n  Ideas: ${ideas}\n  Prototype: ${truncate(dev.prototypeThis ?? "", 150)}\n  If ignored: ${truncate(dev.ignoreConsequence ?? "", 150)}`
     );
   }
 
@@ -577,27 +576,6 @@ Return ONLY the standup text. No asterisks, no headers, no markdown.`;
   return generateContent(prompt);
 }
 
-async function generateFollowUps(response: string, message: string): Promise<string[]> {
-  try {
-    const prompt = `Given this conversation in a Fello GTM AI intelligence assistant:
-
-User asked: "${message.slice(0, 200)}"
-Assistant said: "${response.slice(0, 350)}"
-
-Suggest exactly 2 natural follow-up questions the user might want to ask next. Make them specific to what was just discussed, not generic. Max 7 words each. Return as JSON array of 2 strings only, nothing else.`;
-
-    const raw = await generateContent(prompt);
-    const cleaned = raw.trim().replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-    const parsed = JSON.parse(cleaned) as unknown;
-    if (Array.isArray(parsed) && parsed.length >= 2) {
-      return [String(parsed[0]), String(parsed[1])];
-    }
-  } catch {
-    // follow-ups are optional
-  }
-  return [];
-}
-
 // ── Route handlers ────────────────────────────────────────────────────────
 
 export async function OPTIONS() {
@@ -621,31 +599,26 @@ export async function POST(request: NextRequest) {
   const today = new Date().toLocaleDateString("en-US", { dateStyle: "full" });
 
   try {
-    // For pure action intents that don't need a system prompt, handle directly
     if (intent === "MOVE_IDEA") {
       const result = await handleMoveIdea(body.message, userId);
-      const followUps = await generateFollowUps(result.response, body.message);
-      return Response.json({ success: true, data: { response: result.response, action: result.action, followUps, isSlackDraft: false } }, { headers: CORS });
+      return Response.json({ success: true, data: { response: result.response, action: result.action, isSlackDraft: false } }, { headers: CORS });
     }
 
     if (intent === "ADD_SOURCE") {
       const result = await handleAddSource(body.message);
-      const followUps = await generateFollowUps(result.response, body.message);
-      return Response.json({ success: true, data: { response: result.response, action: result.action, followUps, isSlackDraft: false } }, { headers: CORS });
+      return Response.json({ success: true, data: { response: result.response, action: result.action, isSlackDraft: false } }, { headers: CORS });
     }
 
     if (intent === "SET_FOCUS") {
       const result = await handleSetFocus(body.message);
-      const followUps = await generateFollowUps(result.response, body.message);
-      return Response.json({ success: true, data: { response: result.response, action: result.action, followUps, isSlackDraft: false } }, { headers: CORS });
+      return Response.json({ success: true, data: { response: result.response, action: result.action, isSlackDraft: false } }, { headers: CORS });
     }
 
     if (intent === "REGENERATE") {
       const result = handleRegenerate(body.message);
-      return Response.json({ success: true, data: { response: result.response, action: result.action, followUps: [], isSlackDraft: false } }, { headers: CORS });
+      return Response.json({ success: true, data: { response: result.response, action: result.action, isSlackDraft: false } }, { headers: CORS });
     }
 
-    // For everything else, load context then call Gemini
     const ctx = await loadContextForIntent(body.message, intent);
     const systemPrompt = buildSystemPrompt(ctx, today);
 
@@ -663,15 +636,13 @@ export async function POST(request: NextRequest) {
     } else {
       responseText = await generateChatResponse(
         systemPrompt,
-        (body.conversationHistory ?? []).slice(-20),
+        (body.conversationHistory ?? []).slice(-10),
         body.message
       );
     }
 
-    const followUps = await generateFollowUps(responseText, body.message);
-
     return Response.json(
-      { success: true, data: { response: responseText, action, followUps, isSlackDraft } },
+      { success: true, data: { response: responseText, action, isSlackDraft } },
       { headers: CORS }
     );
   } catch (error) {

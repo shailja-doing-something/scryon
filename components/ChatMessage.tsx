@@ -5,14 +5,13 @@ import type { ChatMessage as ChatMessageType } from "./ChatPanel";
 
 interface Props {
   message: ChatMessageType;
-  onFollowUpClick: (text: string) => void;
 }
 
 function fmt(d: Date) {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-export function ChatMessageItem({ message, onFollowUpClick }: Props) {
+export function ChatMessageItem({ message }: Props) {
   const [copied, setCopied] = useState(false);
   const [hovered, setHovered] = useState(false);
 
@@ -113,24 +112,6 @@ export function ChatMessageItem({ message, onFollowUpClick }: Props) {
       )}
 
       <span className="text-[11px] mx-1" style={{ color: "#55557A" }}>{fmt(message.timestamp)}</span>
-
-      {/* Follow-up chips */}
-      {message.followUps && message.followUps.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-1 animate-fade-in">
-          {message.followUps.map((q, i) => (
-            <button
-              key={i}
-              onClick={() => onFollowUpClick(q)}
-              className="text-[11px] px-2.5 py-1 rounded-full transition-all"
-              style={{ background: "#16162A", border: "1px solid #2A2A45", color: "#8888AA" }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "rgba(123,92,240,0.4)"; e.currentTarget.style.color = "#A78BFA"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#2A2A45"; e.currentTarget.style.color = "#8888AA"; }}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
