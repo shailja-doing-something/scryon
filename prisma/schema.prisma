@@ -28,6 +28,7 @@ model Brief {
   rawSources    String        @default("[]")
   generatedAt   DateTime      @default(now())
   status        String        @default("PENDING")
+  topActions    String?
   developments  Development[]
   patternBriefs PatternBrief[]
 }
@@ -45,6 +46,7 @@ model Development {
   fitInFello        String    @default("")
   prototypeThis     String    @default("")
   ignoreConsequence String    @default("")
+  whyNow            String?
   ideas             Idea[]
   comments          Comment[]
   upvotes           Upvote[]

@@ -37,6 +37,13 @@ interface GeneratedRecommendation {
   ideas: IdeaItem[];
   prototypeThis: string;
   ignoreConsequence: string;
+  whyNow: string;
+}
+
+interface TopAction {
+  action: string;
+  timeEstimate: string;
+  developmentTitle: string;
 }
 
 // Robust field extractors to handle camelCase and snake_case from Gemini
@@ -243,7 +250,8 @@ Return a JSON array with one object per development, in the same order. Each obj
     { "type": "WILD", "title": "Creative title", "description": "Unexpected 2-sentence pitch" }
   ],
   "prototypeThis": "One concrete thing to build this week with named tools and expected output",
-  "ignoreConsequence": "Realistic consequence if ignored — who benefits, what is ceded"
+  "ignoreConsequence": "Realistic consequence if ignored — who benefits, what is ceded",
+  "whyNow": "One sentence under 20 words — reference what threshold was just crossed, what just became available, or what window is opening right now"
 }
 
 Rules:
@@ -251,6 +259,7 @@ Rules:
 - "whichTeam" must be exactly one of: "Product", "GTM AI", "Both", "Leadership"
 - "ideas" must contain exactly 6 items: 3 IMMEDIATE, 2 STRATEGIC, 1 WILD — in that order
 - Every idea must have non-empty "title" and "description"
+- "whyNow" must be under 20 words, specific to today — not general background
 - Respond with valid JSON only. No markdown, no backticks, no explanation.`;
 
   const raw = await generateContent(prompt);
@@ -302,8 +311,74 @@ Rules:
         "ignoringConsequence",
         "risk"
       ),
+      whyNow: extractString(parsed, "whyNow", "why_now", "whynow", "urgency", "timing"),
     };
   });
+}
+
+// STEP 3.5: Generate top 3 actions for today
+async function generateTopActions(
+  briefId: string,
+  developments: FilteredDevelopment[],
+  recommendations: GeneratedRecommendation[]
+): Promise<void> {
+  const devSummary = developments
+    .slice(0, 6)
+    .map((d, i) => {
+      const rec = recommendations[i];
+      const firstImmediate = rec?.ideas.find((idea) => idea.type === "IMMEDIATE");
+      return `${i + 1}. ${d.title}\n   Fello fit: ${rec?.fitInFello?.slice(0, 120) ?? ""}\n   Top immediate idea: ${firstImmediate?.title ?? ""}`;
+    })
+    .join("\n\n");
+
+  const prompt = `You are a decisive GTM AI team lead at Fello. Based on today's AI developments and recommendations, generate exactly 3 concrete actions the team should take TODAY or THIS WEEK.
+
+Rules:
+- Each action must be specific and executable
+- Include a time estimate in brackets (2-hour spike, 1-day analysis, 1-week build, etc.)
+- Actions must connect directly to a development from today's brief
+- Prioritise actions that touch Fello's core product (Enrich, Automate, Convert) or the GTM AI team's existing agents
+- Do not suggest vague things like 'explore' or 'consider' — say exactly what to build or test
+- Start each action with a verb: Test, Build, Compare, Prototype, Integrate, Replace, Audit
+
+Today's developments:
+${devSummary}
+
+Return as JSON:
+{
+  "actions": [
+    {
+      "action": "Test Gemma 4 for Fello Author",
+      "timeEstimate": "2-day spike",
+      "developmentTitle": "Google releases Gemma 4"
+    }
+  ]
+}
+
+Respond with valid JSON only. No markdown.`;
+
+  try {
+    const raw = await generateContent(prompt);
+    let parsed: { actions: TopAction[] };
+    try {
+      parsed = JSON.parse(raw) as { actions: TopAction[] };
+    } catch {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON object found in topActions response");
+      parsed = JSON.parse(match[0]) as { actions: TopAction[] };
+    }
+
+    if (!Array.isArray(parsed.actions)) throw new Error("topActions.actions is not an array");
+
+    await prisma.brief.update({
+      where: { id: briefId },
+      data: { topActions: JSON.stringify(parsed) },
+    });
+
+    logger.info("Top actions saved", { briefId, count: parsed.actions.length });
+  } catch (err) {
+    logger.error("generateTopActions failed", { briefId, error: String(err) });
+  }
 }
 
 // STEP 4: Save to database
@@ -341,6 +416,7 @@ async function saveBrief(
             fitInFello: rec.fitInFello ?? "",
             prototypeThis: rec.prototypeThis ?? "",
             ignoreConsequence: rec.ignoreConsequence ?? "",
+            whyNow: rec.whyNow || null,
           },
         });
 
@@ -475,14 +551,17 @@ export async function runDailyBrief(focusArea = ""): Promise<string> {
       recommendations = await generateAllRecommendations(topDevelopments, fellaContext, gtmContext);
       // Pad with empty fallbacks if Gemini returned fewer objects than developments
       while (recommendations.length < topDevelopments.length) {
-        recommendations.push({ fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "" });
+        recommendations.push({ fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "", whyNow: "" });
       }
     } catch (err) {
       logger.error("Batch recommendation generation failed", { error: String(err) });
       recommendations = topDevelopments.map(() => ({
-        fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "",
+        fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "", whyNow: "",
       }));
     }
+
+    // Step 3.5: Generate top actions (separate Gemini call, fire before save)
+    void generateTopActions(brief.id, topDevelopments, recommendations);
 
     // Step 4: Save
     await saveBrief(brief.id, topDevelopments, recommendations, candidates);

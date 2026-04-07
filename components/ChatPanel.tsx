@@ -14,10 +14,10 @@ export interface ChatMessage {
 }
 
 const QUICK_ACTIONS = [
-  { icon: <ClipboardList size={12} />, label: "Brief me", message: "Give me a quick summary of today's brief" },
-  { icon: <BarChart2 size={12} />, label: "Top ideas", message: "Which ideas in the tracker are most worth pursuing right now and why?" },
-  { icon: <Zap size={12} />, label: "Standup", message: "Give me my AI standup for today" },
-  { icon: <RefreshCw size={12} />, label: "Regenerate", message: "Regenerate today's brief" },
+  { icon: <ClipboardList size={12} />, label: "What matters today?", message: "Give me a quick summary of today's brief" },
+  { icon: <BarChart2 size={12} />, label: "What should we build?", message: "Which ideas in the tracker are most worth pursuing right now and why?" },
+  { icon: <Zap size={12} />, label: "Give me my standup", message: "Give me my AI standup for today" },
+  { icon: <RefreshCw size={12} />, label: "Refresh brief", message: "Regenerate today's brief" },
 ];
 
 const WELCOME = "Hi — I'm Scryon, your intelligence analyst. Ask me about today's brief, your ideas, patterns, or tell me to take an action.";

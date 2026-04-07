@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart2, Lightbulb, Star, RefreshCw } from "lucide-react";
+import { BarChart2, TrendingUp, RefreshCw } from "lucide-react";
 import { DevelopmentCard } from "@/components/DevelopmentCard";
 import { formatSlackMessage } from "@/lib/formatter";
 
@@ -30,6 +30,7 @@ interface Development {
   fitInFello: string;
   prototypeThis: string;
   ignoreConsequence: string;
+  whyNow?: string | null;
   ideas: Idea[];
   comments: Comment[];
   _count: { upvotes: number };
@@ -40,6 +41,7 @@ interface Brief {
   date: Date | string;
   focusArea: string;
   status: string;
+  topActions?: string | null;
   developments: Development[];
 }
 
@@ -48,6 +50,12 @@ interface Pattern {
   theme: string;
   frequency: number;
   lastSeen: Date | string;
+}
+
+interface TopAction {
+  action: string;
+  timeEstimate: string;
+  developmentTitle: string;
 }
 
 interface Props {
@@ -67,16 +75,6 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
   const filteredDevelopments = brief?.developments.filter(
     (d) => !d.whichTeam || !TEAMS.includes(d.whichTeam) || showTeams.has(d.whichTeam)
   ) ?? [];
-
-  // Compute stats
-  const totalIdeas = brief?.developments.reduce((sum, d) => sum + d.ideas.length, 0) ?? 0;
-  const avgScore = brief?.developments.length
-    ? brief.developments.reduce((sum, d) => {
-        const s = JSON.parse(d.scores || "{}") as { weighted?: number };
-        return sum + (s.weighted ?? 0);
-      }, 0) / brief.developments.length
-    : 0;
-  const topDev = brief?.developments[0];
 
   function toggleTeam(team: string) {
     setShowTeams((prev) => {
@@ -158,22 +156,53 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
     );
   }
 
-  const dateStr = new Date(brief.date).toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  // ── Date formatting ─────────────────────────────────────────────────────
+  const briefDate = new Date(brief.date);
+  const dayName = briefDate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+  const monthName = briefDate.toLocaleDateString("en-US", { month: "long" }).toLowerCase();
+  const dayNum = briefDate.getDate();
+  const isJan1 = briefDate.getMonth() === 0 && briefDate.getDate() === 1;
+  const dateDisplay = isJan1
+    ? `${dayName}, ${monthName} ${dayNum}, ${briefDate.getFullYear()}`
+    : `${dayName}, ${monthName} ${dayNum}`;
+
+  // ── Stats ───────────────────────────────────────────────────────────────
+  const avgScore = brief.developments.length
+    ? brief.developments.reduce((sum, d) => {
+        const s = JSON.parse(d.scores || "{}") as { weighted?: number };
+        return sum + (s.weighted ?? 0);
+      }, 0) / brief.developments.length
+    : 0;
+
+  const allIdeas = brief.developments.flatMap((d) => d.ideas);
+  const inMotion = allIdeas.filter((i) => i.status === "CONSIDERING" || i.status === "PROTOTYPING").length;
+  const generatedCount = allIdeas.filter((i) => i.status === "GENERATED").length;
+  const workedCount = allIdeas.filter((i) => i.status === "WORKED").length;
+
+  // ── Top actions ─────────────────────────────────────────────────────────
+  const topActions: TopAction[] = (() => {
+    if (!brief.topActions) return [];
+    try {
+      const parsed = JSON.parse(brief.topActions) as { actions?: TopAction[] };
+      return parsed.actions ?? [];
+    } catch {
+      return [];
+    }
+  })();
 
   return (
     <div className="space-y-7">
       {/* Header */}
       <div className="animate-fade-up">
-        <p className="text-xs text-lo uppercase tracking-widest mb-1.5">{dateStr}</p>
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-          <h1 className="text-2xl font-bold text-hi flex-1">
-            Daily AI Intelligence Brief
-          </h1>
+          <div className="flex-1">
+            <p className="text-[13px] text-lo font-normal uppercase tracking-[0.06em] mb-1">
+              scryon brief
+            </p>
+            <h1 className="text-[28px] font-medium text-hi leading-tight">
+              {dateDisplay}
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <input
               value={focusArea}
@@ -203,48 +232,74 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
         </div>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4 animate-fade-up delay-75">
-        {[
-          {
-            label: "Developments",
-            value: brief.developments.length,
-            icon: <BarChart2 size={16} />,
-            color: "#7B5CF0",
-          },
-          {
-            label: "Ideas Generated",
-            value: totalIdeas,
-            icon: <Lightbulb size={16} />,
-            color: "#A78BFA",
-          },
-          {
-            label: "Avg Score",
-            value: avgScore.toFixed(1),
-            icon: <Star size={16} />,
-            color: "#22C55E",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-xl p-4 transition-all duration-200"
-            style={{
-              background: "rgba(15,15,26,0.8)",
-              border: "1px solid #2A2A45",
-            }}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-lo uppercase tracking-wider">{stat.label}</span>
-              <span className="text-lo">{stat.icon}</span>
-            </div>
-            <p className="text-2xl font-bold font-mono" style={{ color: stat.color }}>
-              {stat.value}
-            </p>
-            {stat.label === "Developments" && topDev && (
-              <p className="text-xs text-lo mt-1 truncate">Top: {topDev.title.slice(0, 28)}…</p>
-            )}
+      {/* Top Actions Today */}
+      {topActions.length > 0 && (
+        <div
+          className="rounded-2xl p-5 animate-fade-up"
+          style={{
+            background: "#0F0F1A",
+            border: "1px solid #2A2A45",
+            borderLeft: "3px solid #7B5CF0",
+          }}
+        >
+          <p className="text-[11px] text-lo uppercase tracking-[0.08em] font-semibold mb-4">
+            Top Actions Today
+          </p>
+          <div className="space-y-4">
+            {topActions.map((a, i) => (
+              <div key={i} className="flex gap-3">
+                <div
+                  className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold"
+                  style={{ background: "rgba(123,92,240,0.18)", color: "#A78BFA" }}
+                >
+                  {i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-medium text-hi leading-snug">
+                    {a.action}
+                    <span className="ml-2 text-[12px] font-normal text-accent">
+                      → {a.timeEstimate}
+                    </span>
+                  </p>
+                  {a.developmentTitle && (
+                    <p className="text-[11px] text-lo mt-0.5">
+                      from: {a.developmentTitle}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Stats row — 2 smart cards */}
+      <div className="grid grid-cols-2 gap-4 animate-fade-up delay-75">
+        <div
+          className="rounded-xl p-4 transition-all duration-200"
+          style={{ background: "rgba(15,15,26,0.8)", border: "1px solid #2A2A45" }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-lo uppercase tracking-wider">today&apos;s signal</span>
+            <span className="text-lo"><BarChart2 size={16} /></span>
+          </div>
+          <p className="text-2xl font-bold font-mono text-accent">
+            {avgScore.toFixed(1)}<span className="text-base font-normal text-lo">/10</span>
+          </p>
+          <p className="text-xs text-lo mt-1">{brief.developments.length} developments analysed</p>
+        </div>
+
+        <div
+          className="rounded-xl p-4 transition-all duration-200"
+          style={{ background: "rgba(15,15,26,0.8)", border: "1px solid #2A2A45" }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-lo uppercase tracking-wider">ideas in motion</span>
+            <span className="text-lo"><TrendingUp size={16} /></span>
+          </div>
+          <p className="text-2xl font-bold font-mono text-accent-hi">{inMotion}</p>
+          <p className="text-xs text-lo mt-1">{generatedCount} generated, {workedCount} worked</p>
+        </div>
       </div>
 
       {/* Team filters */}

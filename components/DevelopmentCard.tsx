@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Zap, Rocket, AlertTriangle } from "lucide-react";
+import { Zap, Rocket, AlertTriangle, Clock, Trash2 } from "lucide-react";
 import { ScoreBar } from "@/components/ScoreBar";
 import { TeamBadge } from "@/components/TeamBadge";
 
@@ -38,6 +38,7 @@ interface Development {
   fitInFello: string;
   prototypeThis: string;
   ignoreConsequence: string;
+  whyNow?: string | null;
   ideas: Idea[];
   comments: Comment[];
   _count: { upvotes: number };
@@ -49,6 +50,11 @@ interface Props {
   onAddToTracker?: (ideaId: string) => void;
 }
 
+function getIdeaTitle(text: string): string {
+  const idx = text.indexOf("\n");
+  return idx !== -1 ? text.slice(0, idx).trim() : text.trim();
+}
+
 export function DevelopmentCard({ dev, currentUserId }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(dev._count.upvotes);
@@ -57,13 +63,23 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
   const [comments, setComments] = useState(dev.comments);
   const [submitting, setSubmitting] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const scores: Scores = JSON.parse(dev.scores || "{}") as Scores;
   const immediate = dev.ideas.filter((i) => i.type === "IMMEDIATE");
   const strategic = dev.ideas.filter((i) => i.type === "STRATEGIC");
   const wild = dev.ideas.find((i) => i.type === "WILD");
+  const firstImmediate = immediate[0];
 
   const scorePercent = scores.weighted ? Math.round((scores.weighted / 10) * 100) : 0;
+
+  const felloAngleText = dev.fitInFello
+    ? (() => {
+        const lines = dev.fitInFello.split("\n").slice(0, 2).join(" ").trim();
+        return lines.length > 150 ? lines.slice(0, 150) + "…" : lines;
+      })()
+    : "";
 
   async function handleUpvote() {
     const res = await fetch(`/api/developments/${dev.id}/upvote`, { method: "POST" });
@@ -91,7 +107,18 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
     setSubmitting(false);
   }
 
-  void currentUserId;
+  async function handleDeleteComment(commentId: string) {
+    setDeletingId(commentId);
+    try {
+      const res = await fetch(`/api/comments/${commentId}`, { method: "DELETE" });
+      if (res.ok) {
+        setComments((prev) => prev.filter((c) => c.id !== commentId));
+        setConfirmDeleteId(null);
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div
@@ -172,6 +199,38 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
             <ScoreBar label="Cost/Impact"   value={scores.costImpact ?? 0}   color="bg-green-400"  delay={240} />
           </div>
         )}
+
+        {/* Hook content — always visible */}
+        {(felloAngleText || dev.whyNow || firstImmediate) && (
+          <div className="mt-4 space-y-3 pt-4" style={{ borderTop: "1px solid #1E1E35" }}>
+            {/* Fello angle */}
+            {felloAngleText && (
+              <div>
+                <p className="text-[10px] text-lo uppercase tracking-wider mb-1">Fello Angle</p>
+                <p className="text-[13px] text-mid leading-snug italic">{felloAngleText}</p>
+              </div>
+            )}
+
+            {/* Why now */}
+            {dev.whyNow && (
+              <div className="flex items-start gap-1.5">
+                <Clock size={11} className="text-warn flex-shrink-0 mt-0.5" />
+                <p className="text-[12px] text-warn leading-snug italic">{dev.whyNow}</p>
+              </div>
+            )}
+
+            {/* Try this */}
+            {firstImmediate && (
+              <div>
+                <p className="text-[10px] text-lo uppercase tracking-wider mb-1">Try This</p>
+                <div className="flex items-start gap-1.5">
+                  <Zap size={12} className="text-accent flex-shrink-0 mt-0.5" />
+                  <p className="text-[13px] text-hi leading-snug">{getIdeaTitle(firstImmediate.text)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Expand toggle */}
@@ -193,7 +252,6 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
         </svg>
         <span>{expanded ? "Collapse analysis" : "Show full analysis"}</span>
         <span className="ml-auto flex items-center gap-3">
-          {/* Ideas count */}
           <span className="flex items-center gap-1">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -346,15 +404,49 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
               {comments.map((c, i) => (
                 <div
                   key={c.id}
-                  className="animate-fade-up rounded-xl px-4 py-3 text-sm"
+                  className="group relative animate-fade-up rounded-xl px-4 py-3 text-sm"
                   style={{
                     background: "rgba(22,22,42,0.8)",
                     border: "1px solid #2A2A45",
                     animationDelay: `${i * 50}ms`,
                   }}
                 >
-                  <span className="font-semibold text-accent-hi">{c.user.name ?? c.user.email}</span>
-                  <span className="text-mid ml-2">{c.text}</span>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <span className="font-semibold text-accent-hi">{c.user.name ?? c.user.email}</span>
+                      <span className="text-mid ml-2">{c.text}</span>
+                    </div>
+                    {c.user.id === currentUserId && (
+                      <button
+                        onClick={() => setConfirmDeleteId(confirmDeleteId === c.id ? null : c.id)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 p-1 rounded text-lo hover:text-err"
+                        title="Delete comment"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+
+                  {confirmDeleteId === c.id && (
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <span className="text-lo">Delete this comment?</span>
+                      <button
+                        onClick={() => handleDeleteComment(c.id)}
+                        disabled={deletingId === c.id}
+                        className="px-2 py-0.5 rounded text-err font-medium transition-colors"
+                        style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}
+                      >
+                        {deletingId === c.id ? "Deleting…" : "Yes"}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="px-2 py-0.5 rounded text-lo font-medium transition-colors"
+                        style={{ background: "rgba(42,42,69,0.6)", border: "1px solid #2A2A45" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
