@@ -46,6 +46,20 @@ interface TopAction {
   developmentTitle: string;
 }
 
+// Normalise whichTeam to one of the four canonical values
+function normaliseTeam(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes("gtm") || lower.includes("marketing") || lower.includes("go-to-market"))
+    return "GTM AI";
+  if (lower.includes("product") || lower.includes("feature") || lower.includes("engineering"))
+    return "Product";
+  if (lower.includes("both") || lower.includes("all") || lower.includes("entire"))
+    return "Both";
+  if (lower.includes("leader") || lower.includes("execut") || lower.includes("strategic") || lower.includes("management"))
+    return "Leadership";
+  return "Both";
+}
+
 // Robust field extractors to handle camelCase and snake_case from Gemini
 function extractString(obj: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
@@ -412,7 +426,7 @@ async function saveBrief(
             sourceUrl: dev.url ?? "",
             scores: JSON.stringify(dev.scores),
             rank: dev.rank ?? i + 1,
-            whichTeam: rec.whichTeam ?? "",
+            whichTeam: normaliseTeam(rec.whichTeam ?? ""),
             fitInFello: rec.fitInFello ?? "",
             prototypeThis: rec.prototypeThis ?? "",
             ignoreConsequence: rec.ignoreConsequence ?? "",

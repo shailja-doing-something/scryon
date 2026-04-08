@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Zap, Rocket, AlertTriangle, Trash2 } from "lucide-react";
+import { Zap, Rocket, AlertTriangle, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { ScoreBar } from "@/components/ScoreBar";
 import { TeamBadge } from "@/components/TeamBadge";
 
@@ -60,14 +60,15 @@ function cleanTitle(title: string): string {
 }
 
 const SCORE_DOTS = [
-  { key: "relevance",     color: "#818CF8", label: "Relevance" },
-  { key: "deployability", color: "#60A5FA", label: "Deploy" },
-  { key: "competitive",   color: "#A78BFA", label: "Compete" },
-  { key: "costImpact",    color: "#34D399", label: "Cost" },
-] as const;
+  { key: "relevance" as const,     color: "#7B5CF0", label: "Relevance" },
+  { key: "deployability" as const, color: "#60A5FA", label: "Deployability" },
+  { key: "competitive" as const,   color: "#A78BFA", label: "Competitiveness" },
+  { key: "costImpact" as const,    color: "#34D399", label: "Cost/Impact" },
+];
 
 export function DevelopmentCard({ dev, currentUserId }: Props) {
   const [expanded, setExpanded] = useState(false);
+  const [expandHovered, setExpandHovered] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(dev._count.upvotes);
   const [upvoted, setUpvoted] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -124,6 +125,48 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
     }
   }
 
+  const expandBtnStyle: React.CSSProperties = expanded
+    ? {
+        background: "#16162A",
+        border: "1px solid #7B5CF0",
+        borderRadius: 8,
+        padding: "6px 12px",
+        fontSize: 12,
+        color: "#A78BFA",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        transition: "all 150ms ease",
+      }
+    : expandHovered
+    ? {
+        background: "#16162A",
+        border: "1px solid #3A3A60",
+        borderRadius: 8,
+        padding: "6px 12px",
+        fontSize: 12,
+        color: "#A78BFA",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        transition: "all 150ms ease",
+      }
+    : {
+        background: "transparent",
+        border: "1px solid #2A2A45",
+        borderRadius: 8,
+        padding: "6px 12px",
+        fontSize: 12,
+        color: "#A78BFA",
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        transition: "all 150ms ease",
+      };
+
   return (
     <div
       className="rounded-2xl overflow-hidden transition-all duration-150"
@@ -137,7 +180,7 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
       {/* Card body */}
       <div style={{ padding: "20px 24px" }}>
 
-        {/* Title row */}
+        {/* Title row — no summary */}
         <div className="flex items-start gap-3">
           {/* Rank badge */}
           <div
@@ -147,21 +190,15 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
             #{dev.rank}
           </div>
 
-          {/* Title + summary */}
+          {/* Title only */}
           <div className="flex-1 min-w-0">
             <h3 className="text-sm font-semibold text-hi leading-snug">{displayTitle}</h3>
-            <p
-              className="mt-1 leading-snug truncate"
-              style={{ fontSize: 13, color: "#8888AA" }}
-            >
-              {dev.summary}
-            </p>
           </div>
 
           {/* Score badge */}
           {scores.weighted > 0 && (
             <div
-              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm font-mono"
+              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold font-mono"
               style={{
                 background: `conic-gradient(#7B5CF0 ${scorePercent * 3.6}deg, rgba(42,42,69,0.8) 0deg)`,
                 padding: "2px",
@@ -177,7 +214,7 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
           )}
         </div>
 
-        {/* Score bars — compact, no numbers */}
+        {/* Score bars — compact, full-word axis labels */}
         {scores.weighted > 0 && (
           <div style={{ marginTop: 16 }}>
             <div className="grid grid-cols-2 gap-x-6 gap-y-2">
@@ -263,21 +300,16 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
           )}
         </div>
 
-        {/* Right: expand + counts */}
-        <div className="flex items-center gap-4">
+        {/* Right: Full analysis button + counts */}
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setExpanded((e) => !e)}
-            className="flex items-center gap-1 transition-colors"
-            style={{ fontSize: 12, color: expanded ? "#A78BFA" : "#55557A" }}
+            onMouseEnter={() => setExpandHovered(true)}
+            onMouseLeave={() => setExpandHovered(false)}
+            style={expandBtnStyle}
           >
-            <svg
-              className="w-3.5 h-3.5 transition-transform duration-200"
-              style={{ transform: expanded ? "rotate(180deg)" : "none" }}
-              fill="none" viewBox="0 0 24 24" stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-            Full analysis
+            {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            {expanded ? "Hide analysis" : "Full analysis"}
           </button>
           <span className="flex items-center gap-1" style={{ fontSize: 12, color: "#55557A" }}>
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">

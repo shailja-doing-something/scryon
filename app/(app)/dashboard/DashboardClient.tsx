@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart2, TrendingUp, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { DevelopmentCard } from "@/components/DevelopmentCard";
 import { formatSlackMessage } from "@/lib/formatter";
 
@@ -39,6 +39,7 @@ interface Development {
 interface Brief {
   id: string;
   date: Date | string;
+  generatedAt?: Date | string;
   focusArea: string;
   status: string;
   topActions?: string | null;
@@ -64,26 +65,33 @@ interface Props {
   currentUserId: string;
 }
 
-const TEAMS = ["Product", "GTM AI", "Both", "Leadership"];
+// Filter labels — "All" is the selector that shows everything
+const FILTER_OPTIONS = ["All", "Product", "GTM AI", "Leadership"] as const;
+type FilterOption = (typeof FILTER_OPTIONS)[number];
+
+function timeAgo(date: Date | string): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
 export function DashboardClient({ brief, patternSummary, currentUserId }: Props) {
   const [focusArea, setFocusArea] = useState(brief?.focusArea ?? "");
   const [generating, setGenerating] = useState(false);
   const [slackCopied, setSlackCopied] = useState(false);
-  const [showTeams, setShowTeams] = useState<Set<string>>(new Set(TEAMS));
+  const [activeFilter, setActiveFilter] = useState<FilterOption>("All");
 
-  const filteredDevelopments = brief?.developments.filter(
-    (d) => !d.whichTeam || !TEAMS.includes(d.whichTeam) || showTeams.has(d.whichTeam)
-  ) ?? [];
-
-  function toggleTeam(team: string) {
-    setShowTeams((prev) => {
-      const next = new Set(prev);
-      if (next.has(team)) next.delete(team);
-      else next.add(team);
-      return next;
-    });
-  }
+  const filteredDevelopments = brief?.developments.filter((d) => {
+    if (activeFilter === "All") return true;
+    if (d.whichTeam === "Both") {
+      return activeFilter === "Product" || activeFilter === "GTM AI";
+    }
+    return d.whichTeam === activeFilter;
+  }) ?? [];
 
   async function handleRegenerate() {
     if (!confirm("Regenerate today's brief? This will call Gemini API and may take a few minutes.")) return;
@@ -166,7 +174,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
     ? `${dayName}, ${monthName} ${dayNum}, ${briefDate.getFullYear()}`
     : `${dayName}, ${monthName} ${dayNum}`;
 
-  // ── Stats ───────────────────────────────────────────────────────────────
+  // ── Status bar stats ────────────────────────────────────────────────────
   const avgScore = brief.developments.length
     ? brief.developments.reduce((sum, d) => {
         const s = JSON.parse(d.scores || "{}") as { weighted?: number };
@@ -175,9 +183,10 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
     : 0;
 
   const allIdeas = brief.developments.flatMap((d) => d.ideas);
-  const inMotion = allIdeas.filter((i) => i.status === "CONSIDERING" || i.status === "PROTOTYPING").length;
-  const generatedCount = allIdeas.filter((i) => i.status === "GENERATED").length;
+  const consideringCount = allIdeas.filter((i) => i.status === "CONSIDERING").length;
+  const prototypingCount = allIdeas.filter((i) => i.status === "PROTOTYPING").length;
   const workedCount = allIdeas.filter((i) => i.status === "WORKED").length;
+  const generatedAt = brief.generatedAt ?? brief.date;
 
   // ── Top actions ─────────────────────────────────────────────────────────
   const topActions: TopAction[] = (() => {
@@ -191,7 +200,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
   })();
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-5">
       {/* Header */}
       <div className="animate-fade-up">
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
@@ -232,6 +241,40 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
         </div>
       </div>
 
+      {/* Slim status bar */}
+      <div
+        className="flex items-center justify-between animate-fade-up"
+        style={{
+          height: 40,
+          background: "#0F0F1A",
+          border: "1px solid #2A2A45",
+          borderRadius: 10,
+          padding: "0 20px",
+          fontSize: 13,
+          color: "#8888AA",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <span style={{ color: "#F0F0FF", fontWeight: 500 }}>{avgScore.toFixed(1)}</span>
+          <span>avg signal</span>
+          <span style={{ color: "#3A3A60" }}>·</span>
+          <span style={{ color: "#F0F0FF", fontWeight: 500 }}>{brief.developments.length}</span>
+          <span>developments</span>
+          <span style={{ color: "#3A3A60" }}>·</span>
+          <span>generated {timeAgo(generatedAt)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span style={{ color: "#F0F0FF", fontWeight: 500 }}>{consideringCount}</span>
+          <span>considering</span>
+          <span style={{ color: "#3A3A60" }}>·</span>
+          <span style={{ color: "#F0F0FF", fontWeight: 500 }}>{prototypingCount}</span>
+          <span>prototyping</span>
+          <span style={{ color: "#3A3A60" }}>·</span>
+          <span style={{ color: "#F0F0FF", fontWeight: 500 }}>{workedCount}</span>
+          <span>worked</span>
+        </div>
+      </div>
+
       {/* Top Actions Today */}
       {topActions.length > 0 && (
         <div
@@ -241,7 +284,6 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
             border: "1px solid #2A2A45",
             borderLeft: "3px solid #7B5CF0",
             padding: "20px 24px",
-            marginBottom: 24,
           }}
         >
           <p className="text-[11px] text-lo uppercase tracking-[0.08em] font-semibold mb-4">
@@ -268,60 +310,43 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
         </div>
       )}
 
-      {/* Stats row — 2 smart cards */}
-      <div className="grid grid-cols-2 gap-4 animate-fade-up delay-75" style={{ margin: "20px 0" }}>
-        <div
-          className="rounded-xl p-4 transition-all duration-200"
-          style={{ background: "rgba(15,15,26,0.8)", border: "1px solid #2A2A45" }}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-lo uppercase tracking-wider">today&apos;s signal</span>
-            <span className="text-lo"><BarChart2 size={16} /></span>
-          </div>
-          <p className="text-2xl font-bold font-mono text-accent">
-            {avgScore.toFixed(1)}<span className="text-base font-normal text-lo">/10</span>
-          </p>
-          <p className="text-xs text-lo mt-1">{brief.developments.length} developments analysed</p>
-        </div>
-
-        <div
-          className="rounded-xl p-4 transition-all duration-200"
-          style={{ background: "rgba(15,15,26,0.8)", border: "1px solid #2A2A45" }}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-lo uppercase tracking-wider">ideas in motion</span>
-            <span className="text-lo"><TrendingUp size={16} /></span>
-          </div>
-          <p className="text-2xl font-bold font-mono text-accent-hi">{inMotion}</p>
-          <p className="text-xs text-lo mt-1">{generatedCount} generated, {workedCount} worked</p>
-        </div>
-      </div>
-
       {/* Team filters */}
-      <div className="flex flex-wrap items-center gap-2 animate-fade-up delay-150" style={{ marginBottom: 16 }}>
+      <div className="flex flex-wrap items-center gap-2 animate-fade-up" style={{ marginBottom: 4 }}>
         <span className="text-xs text-lo font-semibold uppercase tracking-widest">Filter:</span>
-        {TEAMS.map((team) => {
-          const active = showTeams.has(team);
+        {FILTER_OPTIONS.map((option) => {
+          const isActive = activeFilter === option;
           return (
             <button
-              key={team}
-              onClick={() => toggleTeam(team)}
-              className="px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200"
+              key={option}
+              onClick={() => setActiveFilter(option)}
+              className="px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150"
               style={
-                active
+                isActive
                   ? {
-                      background: "rgba(123,92,240,0.18)",
-                      border: "1px solid rgba(123,92,240,0.4)",
+                      background: "#1E1640",
+                      border: "1px solid #3D2E7A",
                       color: "#A78BFA",
                     }
                   : {
                       background: "transparent",
                       border: "1px solid #2A2A45",
-                      color: "#55557A",
+                      color: "#8888AA",
                     }
               }
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "#16162A";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#F0F0FF";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#8888AA";
+                }
+              }}
             >
-              {team}
+              {option}
             </button>
           );
         })}
@@ -338,6 +363,11 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
             <DevelopmentCard dev={dev} currentUserId={currentUserId} />
           </div>
         ))}
+        {filteredDevelopments.length === 0 && (
+          <p className="text-sm text-lo text-center py-8">
+            No developments tagged for {activeFilter}.
+          </p>
+        )}
       </div>
 
       {/* Pattern watch */}
