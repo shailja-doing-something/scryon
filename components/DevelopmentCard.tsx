@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Zap, Rocket, AlertTriangle, Clock, Trash2 } from "lucide-react";
+import { Zap, Rocket, AlertTriangle, Trash2 } from "lucide-react";
 import { ScoreBar } from "@/components/ScoreBar";
 import { TeamBadge } from "@/components/TeamBadge";
 
@@ -55,6 +55,17 @@ function getIdeaTitle(text: string): string {
   return idx !== -1 ? text.slice(0, idx).trim() : text.trim();
 }
 
+function cleanTitle(title: string): string {
+  return title.replace(/ · .+$/, "").trim();
+}
+
+const SCORE_DOTS = [
+  { key: "relevance",     color: "#818CF8", label: "Relevance" },
+  { key: "deployability", color: "#60A5FA", label: "Deploy" },
+  { key: "competitive",   color: "#A78BFA", label: "Compete" },
+  { key: "costImpact",    color: "#34D399", label: "Cost" },
+] as const;
+
 export function DevelopmentCard({ dev, currentUserId }: Props) {
   const [expanded, setExpanded] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(dev._count.upvotes);
@@ -62,7 +73,6 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
   const [commentText, setCommentText] = useState("");
   const [comments, setComments] = useState(dev.comments);
   const [submitting, setSubmitting] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -73,13 +83,7 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
   const firstImmediate = immediate[0];
 
   const scorePercent = scores.weighted ? Math.round((scores.weighted / 10) * 100) : 0;
-
-  const felloAngleText = dev.fitInFello
-    ? (() => {
-        const lines = dev.fitInFello.split("\n").slice(0, 2).join(" ").trim();
-        return lines.length > 150 ? lines.slice(0, 150) + "…" : lines;
-      })()
-    : "";
+  const displayTitle = cleanTitle(dev.title);
 
   async function handleUpvote() {
     const res = await fetch(`/api/developments/${dev.id}/upvote`, { method: "POST" });
@@ -122,197 +126,219 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
 
   return (
     <div
-      className="rounded-2xl overflow-hidden transition-all duration-300"
+      className="rounded-2xl overflow-hidden transition-all duration-150"
       style={{
-        background: hovered
-          ? "linear-gradient(135deg, rgba(123,92,240,0.05), rgba(15,15,26,1))"
-          : "#0F0F1A",
-        border: `1px solid ${hovered ? "rgba(123,92,240,0.35)" : "#2A2A45"}`,
-        boxShadow: hovered
-          ? "0 8px 32px rgba(123,92,240,0.12), 0 0 0 1px rgba(123,92,240,0.15)"
-          : "none",
-        transform: hovered ? "translateY(-2px)" : "none",
+        background: "#0F0F1A",
+        border: "1px solid #2A2A45",
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#3A3A60"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#2A2A45"; }}
     >
-      {/* Header */}
-      <div className="p-5 pb-4">
+      {/* Card body */}
+      <div style={{ padding: "20px 24px" }}>
+
+        {/* Title row */}
         <div className="flex items-start gap-3">
           {/* Rank badge */}
           <div
-            className="flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold text-white relative overflow-hidden"
+            className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white"
             style={{ background: "linear-gradient(135deg, #7B5CF0, #A78BFA)" }}
           >
-            <span className="relative z-10">#{dev.rank}</span>
+            #{dev.rank}
           </div>
 
+          {/* Title + summary */}
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-1.5">
-              <h3 className="text-base font-semibold text-hi leading-snug">{dev.title}</h3>
-              <TeamBadge team={dev.whichTeam} />
-            </div>
-            <p className="text-sm text-mid leading-relaxed">{dev.summary}</p>
-            {dev.sourceUrl && (
-              <a
-                href={dev.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-accent-hi hover:text-accent mt-1.5 transition-colors"
-              >
-                View source
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            )}
+            <h3 className="text-sm font-semibold text-hi leading-snug">{displayTitle}</h3>
+            <p
+              className="mt-1 leading-snug truncate"
+              style={{ fontSize: 13, color: "#8888AA" }}
+            >
+              {dev.summary}
+            </p>
           </div>
 
-          {/* Score pill */}
+          {/* Score badge */}
           {scores.weighted > 0 && (
-            <div className="flex-shrink-0 flex flex-col items-center">
+            <div
+              className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm font-mono"
+              style={{
+                background: `conic-gradient(#7B5CF0 ${scorePercent * 3.6}deg, rgba(42,42,69,0.8) 0deg)`,
+                padding: "2px",
+              }}
+            >
               <div
-                className="w-11 h-11 rounded-xl flex items-center justify-center font-bold text-sm font-mono"
-                style={{
-                  background: `conic-gradient(#7B5CF0 ${scorePercent * 3.6}deg, rgba(42,42,69,0.8) 0deg)`,
-                  padding: "2px",
-                }}
+                className="w-full h-full rounded-[10px] flex items-center justify-center"
+                style={{ background: "#0F0F1A", color: "#A78BFA", fontSize: 12 }}
               >
-                <div
-                  className="w-full h-full rounded-[10px] flex items-center justify-center"
-                  style={{ background: "#0F0F1A", color: "#A78BFA" }}
-                >
-                  {scores.weighted.toFixed(1)}
-                </div>
+                {scores.weighted.toFixed(1)}
               </div>
             </div>
           )}
         </div>
 
-        {/* Mini score bars (always visible) */}
+        {/* Score bars — compact, no numbers */}
         {scores.weighted > 0 && (
-          <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3">
-            <ScoreBar label="Relevance"     value={scores.relevance ?? 0}    color="bg-indigo-400" delay={0} />
-            <ScoreBar label="Deployability" value={scores.deployability ?? 0} color="bg-blue-400"   delay={80} />
-            <ScoreBar label="Competitive"   value={scores.competitive ?? 0}  color="bg-purple-400" delay={160} />
-            <ScoreBar label="Cost/Impact"   value={scores.costImpact ?? 0}   color="bg-green-400"  delay={240} />
+          <div style={{ marginTop: 16 }}>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+              {SCORE_DOTS.map((d, i) => (
+                <ScoreBar
+                  key={d.key}
+                  label={d.label}
+                  value={scores[d.key] ?? 0}
+                  color=""
+                  delay={i * 60}
+                  compact
+                  dotColor={d.color}
+                />
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Hook content — always visible */}
-        {(felloAngleText || dev.whyNow || firstImmediate) && (
-          <div className="mt-4 space-y-3 pt-4" style={{ borderTop: "1px solid #1E1E35" }}>
-            {/* Fello angle */}
-            {felloAngleText && (
-              <div>
-                <p className="text-[10px] text-lo uppercase tracking-wider mb-1">Fello Angle</p>
-                <p className="text-[13px] text-mid leading-snug italic">{felloAngleText}</p>
-              </div>
-            )}
+        {/* Why now */}
+        {dev.whyNow && (
+          <p
+            className="leading-snug italic"
+            style={{
+              marginTop: 14,
+              fontSize: 12,
+              color: "#F59E0B",
+              borderLeft: "2px solid #F59E0B",
+              paddingLeft: 8,
+            }}
+          >
+            {dev.whyNow}
+          </p>
+        )}
 
-            {/* Why now */}
-            {dev.whyNow && (
-              <div className="flex items-start gap-1.5">
-                <Clock size={11} className="text-warn flex-shrink-0 mt-0.5" />
-                <p className="text-[12px] text-warn leading-snug italic">{dev.whyNow}</p>
-              </div>
-            )}
-
-            {/* Try this */}
-            {firstImmediate && (
-              <div>
-                <p className="text-[10px] text-lo uppercase tracking-wider mb-1">Try This</p>
-                <div className="flex items-start gap-1.5">
-                  <Zap size={12} className="text-accent flex-shrink-0 mt-0.5" />
-                  <p className="text-[13px] text-hi leading-snug">{getIdeaTitle(firstImmediate.text)}</p>
-                </div>
-              </div>
-            )}
+        {/* Try this pill */}
+        {firstImmediate && (
+          <div style={{ marginTop: 12 }}>
+            <div
+              className="inline-flex items-center gap-1.5"
+              style={{
+                background: "#16162A",
+                border: "1px solid #2A2A45",
+                borderRadius: 20,
+                padding: "6px 12px",
+                fontSize: 12,
+                color: "#F0F0FF",
+              }}
+            >
+              <Zap size={11} color="#7B5CF0" />
+              {getIdeaTitle(firstImmediate.text)}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Expand toggle */}
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="w-full px-5 py-2.5 text-xs flex items-center gap-2 transition-all duration-200"
+      {/* Footer */}
+      <div
+        className="flex items-center justify-between"
         style={{
-          borderTop: "1px solid #2A2A45",
-          color: expanded ? "#A78BFA" : "#55557A",
-          background: expanded ? "rgba(123,92,240,0.04)" : "transparent",
+          borderTop: "1px solid #1E1E35",
+          padding: "12px 24px",
         }}
       >
-        <svg
-          className="w-3.5 h-3.5 transition-transform duration-300"
-          style={{ transform: expanded ? "rotate(180deg)" : "none" }}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-        <span>{expanded ? "Collapse analysis" : "Show full analysis"}</span>
-        <span className="ml-auto flex items-center gap-3">
-          <span className="flex items-center gap-1">
+        {/* Left: team badge + source link */}
+        <div className="flex items-center gap-3">
+          <TeamBadge team={dev.whichTeam} />
+          {dev.sourceUrl && (
+            <a
+              href={dev.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 transition-colors"
+              style={{ fontSize: 12, color: "#55557A" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#A78BFA"; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#55557A"; }}
+            >
+              View source
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                  d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          )}
+        </div>
+
+        {/* Right: expand + counts */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            className="flex items-center gap-1 transition-colors"
+            style={{ fontSize: 12, color: expanded ? "#A78BFA" : "#55557A" }}
+          >
+            <svg
+              className="w-3.5 h-3.5 transition-transform duration-200"
+              style={{ transform: expanded ? "rotate(180deg)" : "none" }}
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            Full analysis
+          </button>
+          <span className="flex items-center gap-1" style={{ fontSize: 12, color: "#55557A" }}>
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
-            {dev.ideas.length} ideas
+            {dev.ideas.length}
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-1" style={{ fontSize: 12, color: "#55557A" }}>
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
             </svg>
             {comments.length}
           </span>
-        </span>
-      </button>
+        </div>
+      </div>
 
       {/* Expanded content */}
       {expanded && (
-        <div className="animate-fade-up px-5 pb-5 space-y-5" style={{ borderTop: "1px solid #1E1E35" }}>
-          {/* Where it fits */}
+        <div
+          className="animate-fade-up space-y-5"
+          style={{ borderTop: "1px solid #1E1E35", padding: "20px 24px" }}
+        >
+          {/* Fello angle — first in expanded */}
           {dev.fitInFello && (
-            <section className="pt-5">
-              <h4 className="text-xs font-semibold text-lo uppercase tracking-widest mb-2.5">
-                Where it fits in Fello
-              </h4>
-              <p className="text-sm text-mid leading-relaxed">{dev.fitInFello}</p>
+            <section>
+              <p className="text-[10px] text-lo uppercase tracking-wider mb-2">Fello Angle</p>
+              <p className="leading-relaxed italic" style={{ fontSize: 13, color: "#8888AA" }}>
+                {dev.fitInFello}
+              </p>
             </section>
           )}
 
           {/* Immediate use cases */}
           {immediate.length > 0 && (
             <section>
-              <h4 className="text-xs font-semibold text-lo uppercase tracking-widest mb-2.5">
-                Immediate Use Cases
-              </h4>
-              <ul className="space-y-2.5">
+              <p className="text-[10px] text-lo uppercase tracking-wider mb-2">Immediate Use Cases</p>
+              <ol className="space-y-2">
                 {immediate.map((idea, i) => (
                   <li key={idea.id} className="flex gap-2.5 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-ok flex-shrink-0" />
+                    <span className="flex-shrink-0 text-xs font-mono" style={{ color: "#55557A", minWidth: 16 }}>{i + 1}.</span>
                     <p className="text-sm text-mid">{idea.text}</p>
                   </li>
                 ))}
-              </ul>
+              </ol>
             </section>
           )}
 
           {/* Strategic bets */}
           {strategic.length > 0 && (
             <section>
-              <h4 className="text-xs font-semibold text-lo uppercase tracking-widest mb-2.5">
-                Strategic Bets
-              </h4>
-              <ul className="space-y-2.5">
+              <p className="text-[10px] text-lo uppercase tracking-wider mb-2">Strategic Bets</p>
+              <ol className="space-y-2">
                 {strategic.map((idea, i) => (
                   <li key={idea.id} className="flex gap-2.5 animate-fade-up" style={{ animationDelay: `${i * 60}ms` }}>
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-accent flex-shrink-0" />
+                    <span className="flex-shrink-0 text-xs font-mono" style={{ color: "#55557A", minWidth: 16 }}>{i + 1}.</span>
                     <p className="text-sm text-mid">{idea.text}</p>
                   </li>
                 ))}
-              </ul>
+              </ol>
             </section>
           )}
 
@@ -324,9 +350,9 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
             >
               <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
                 style={{ background: "radial-gradient(circle, rgba(245,158,11,0.1), transparent)" }} />
-              <h4 className="text-xs font-semibold uppercase tracking-widest mb-2 text-warn flex items-center gap-1.5">
-                <Zap size={14} /> Wild Idea
-              </h4>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-warn flex items-center gap-1.5">
+                <Zap size={12} /> Wild Idea
+              </p>
               <p className="text-sm text-mid">{wild.text}</p>
             </section>
           )}
@@ -339,9 +365,9 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
             >
               <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
                 style={{ background: "radial-gradient(circle, rgba(123,92,240,0.1), transparent)" }} />
-              <h4 className="text-xs font-semibold uppercase tracking-widest mb-2 text-accent-hi flex items-center gap-1.5">
-                <Rocket size={14} /> Prototype This Week
-              </h4>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-accent-hi flex items-center gap-1.5">
+                <Rocket size={12} /> Prototype This Week
+              </p>
               <p className="text-sm text-mid">{dev.prototypeThis}</p>
             </section>
           )}
@@ -354,18 +380,18 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
             >
               <div className="absolute top-0 right-0 w-16 h-16 pointer-events-none"
                 style={{ background: "radial-gradient(circle, rgba(239,68,68,0.1), transparent)" }} />
-              <h4 className="text-xs font-semibold uppercase tracking-widest mb-2 text-err flex items-center gap-1.5">
-                <AlertTriangle size={14} /> If We Ignore This
-              </h4>
+              <p className="text-[10px] font-semibold uppercase tracking-wider mb-2 text-err flex items-center gap-1.5">
+                <AlertTriangle size={12} /> If We Ignore This
+              </p>
               <p className="text-sm text-mid">{dev.ignoreConsequence}</p>
             </section>
           )}
 
-          {/* Actions */}
-          <div className="flex items-center gap-4 pt-2" style={{ borderTop: "1px solid #1E1E35" }}>
+          {/* Upvote + comments */}
+          <div className="pt-2" style={{ borderTop: "1px solid #1E1E35" }}>
             <button
               onClick={handleUpvote}
-              className="flex items-center gap-2 text-sm font-medium transition-all duration-200 px-3 py-1.5 rounded-lg"
+              className="flex items-center gap-2 text-sm font-medium transition-all duration-200 px-3 py-1.5 rounded-lg mb-5"
               style={{
                 background: upvoted ? "rgba(123,92,240,0.15)" : "transparent",
                 border: `1px solid ${upvoted ? "rgba(123,92,240,0.3)" : "#2A2A45"}`,
@@ -378,13 +404,8 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
               </svg>
               <span className="font-mono">{upvoteCount}</span>
             </button>
-          </div>
 
-          {/* Comments */}
-          <div>
-            <h4 className="text-xs font-semibold text-lo uppercase tracking-widest mb-3">
-              Discussion
-            </h4>
+            <p className="text-[10px] text-lo uppercase tracking-wider mb-3">Discussion</p>
             <form onSubmit={handleComment} className="flex gap-2 mb-3">
               <input
                 value={commentText}
@@ -426,21 +447,20 @@ export function DevelopmentCard({ dev, currentUserId }: Props) {
                       </button>
                     )}
                   </div>
-
                   {confirmDeleteId === c.id && (
                     <div className="mt-2 flex items-center gap-2 text-xs">
                       <span className="text-lo">Delete this comment?</span>
                       <button
                         onClick={() => handleDeleteComment(c.id)}
                         disabled={deletingId === c.id}
-                        className="px-2 py-0.5 rounded text-err font-medium transition-colors"
+                        className="px-2 py-0.5 rounded text-err font-medium"
                         style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}
                       >
                         {deletingId === c.id ? "Deleting…" : "Yes"}
                       </button>
                       <button
                         onClick={() => setConfirmDeleteId(null)}
-                        className="px-2 py-0.5 rounded text-lo font-medium transition-colors"
+                        className="px-2 py-0.5 rounded text-lo font-medium"
                         style={{ background: "rgba(42,42,69,0.6)", border: "1px solid #2A2A45" }}
                       >
                         Cancel

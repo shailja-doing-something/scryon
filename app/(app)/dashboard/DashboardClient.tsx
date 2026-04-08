@@ -235,11 +235,13 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
       {/* Top Actions Today */}
       {topActions.length > 0 && (
         <div
-          className="rounded-2xl p-5 animate-fade-up"
+          className="rounded-2xl animate-fade-up"
           style={{
             background: "#0F0F1A",
             border: "1px solid #2A2A45",
             borderLeft: "3px solid #7B5CF0",
+            padding: "20px 24px",
+            marginBottom: 24,
           }}
         >
           <p className="text-[11px] text-lo uppercase tracking-[0.08em] font-semibold mb-4">
@@ -254,19 +256,12 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
                 >
                   {i + 1}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[14px] font-medium text-hi leading-snug">
-                    {a.action}
-                    <span className="ml-2 text-[12px] font-normal text-accent">
-                      → {a.timeEstimate}
-                    </span>
-                  </p>
-                  {a.developmentTitle && (
-                    <p className="text-[11px] text-lo mt-0.5">
-                      from: {a.developmentTitle}
-                    </p>
-                  )}
-                </div>
+                <p className="text-[14px] font-medium text-hi leading-snug">
+                  {a.action.length > 70 ? a.action.slice(0, 70) + "…" : a.action}
+                  <span className="ml-2 text-[12px] font-normal text-accent">
+                    → {a.timeEstimate}
+                  </span>
+                </p>
               </div>
             ))}
           </div>
@@ -274,7 +269,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
       )}
 
       {/* Stats row — 2 smart cards */}
-      <div className="grid grid-cols-2 gap-4 animate-fade-up delay-75">
+      <div className="grid grid-cols-2 gap-4 animate-fade-up delay-75" style={{ margin: "20px 0" }}>
         <div
           className="rounded-xl p-4 transition-all duration-200"
           style={{ background: "rgba(15,15,26,0.8)", border: "1px solid #2A2A45" }}
@@ -303,7 +298,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
       </div>
 
       {/* Team filters */}
-      <div className="flex flex-wrap items-center gap-2 animate-fade-up delay-150">
+      <div className="flex flex-wrap items-center gap-2 animate-fade-up delay-150" style={{ marginBottom: 16 }}>
         <span className="text-xs text-lo font-semibold uppercase tracking-widest">Filter:</span>
         {TEAMS.map((team) => {
           const active = showTeams.has(team);
@@ -333,7 +328,7 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
       </div>
 
       {/* Developments */}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {filteredDevelopments.map((dev, i) => (
           <div
             key={dev.id}

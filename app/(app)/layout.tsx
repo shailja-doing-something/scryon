@@ -11,7 +11,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-canvas">
       <Nav />
       <main className="flex-1 ml-60 min-h-screen">
-        <div className="max-w-5xl mx-auto px-8 py-8">{children}</div>
+        <div className="max-w-5xl mx-auto" style={{ padding: "32px 40px" }}>{children}</div>
       </main>
       <ChatBot />
     </div>

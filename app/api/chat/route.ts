@@ -48,7 +48,7 @@ async function resolveUserId(request: NextRequest): Promise<string | null> {
     const token = authHeader.slice(7).trim();
     const expected = process.env.EXTENSION_TOKEN;
     if (expected && token === expected) {
-      const owner = await prisma.user.findFirst({ where: { role: "OWNER" }, select: { id: true } });
+      const owner = await prisma.user.findFirst({ where: { role: "OWNER" }, select: { id: true } }).catch(() => null);
       return owner?.id ?? null;
     }
   }
@@ -77,10 +77,10 @@ function detectIntent(msg: string): Intent {
   return "GENERAL";
 }
 
-// ── DB query helpers ──────────────────────────────────────────────────────
+// ── DB query helpers (each wrapped with .catch() fallback) ────────────────
 
 async function getContextDocs(): Promise<ContextDoc[]> {
-  return prisma.contextDoc.findMany({ select: { type: true, content: true } });
+  return prisma.contextDoc.findMany({ select: { type: true, content: true } }).catch(() => []);
 }
 
 async function getTodayBriefStats() {
@@ -97,7 +97,7 @@ async function getTodayBriefStats() {
       },
       _count: { select: { developments: true } },
     },
-  });
+  }).catch(() => null);
   if (!brief) return null;
   const topScores = JSON.parse(brief.developments[0]?.scores || "{}") as Record<string, number>;
   return {
@@ -126,7 +126,7 @@ async function getTodayBriefFull() {
         },
       },
     },
-  });
+  }).catch(() => null);
 }
 
 async function getAllIdeasWithAge(): Promise<IdeaRecord[]> {
@@ -141,19 +141,23 @@ async function getAllIdeasWithAge(): Promise<IdeaRecord[]> {
         select: { fromStatus: true, toStatus: true, createdAt: true },
       },
     },
-  });
+  }).catch(() => []);
 }
 
 async function getTrackerCounts() {
-  const counts = await prisma.idea.groupBy({ by: ["status"], _count: { id: true } });
-  const map: Record<string, number> = {};
-  counts.forEach((c) => { map[c.status] = c._count.id; });
-  const oldest = await prisma.idea.findFirst({
-    where: { status: "GENERATED" },
-    orderBy: { createdAt: "asc" },
-    select: { text: true, createdAt: true },
-  });
-  return { counts: map, oldest };
+  try {
+    const counts = await prisma.idea.groupBy({ by: ["status"], _count: { id: true } });
+    const map: Record<string, number> = {};
+    counts.forEach((c) => { map[c.status] = c._count.id; });
+    const oldest = await prisma.idea.findFirst({
+      where: { status: "GENERATED" },
+      orderBy: { createdAt: "asc" },
+      select: { text: true, createdAt: true },
+    }).catch(() => null);
+    return { counts: map, oldest };
+  } catch {
+    return { counts: {}, oldest: null };
+  }
 }
 
 async function getPatterns() {
@@ -161,14 +165,14 @@ async function getPatterns() {
     orderBy: { frequency: "desc" },
     take: 15,
     select: { theme: true, frequency: true, firstSeen: true, lastSeen: true },
-  });
+  }).catch(() => []);
 }
 
 async function getTopPattern() {
   return prisma.pattern.findFirst({
     orderBy: { frequency: "desc" },
     select: { theme: true, frequency: true, lastSeen: true },
-  });
+  }).catch(() => null);
 }
 
 async function getLastNBriefSummaries(n: number) {
@@ -186,7 +190,7 @@ async function getLastNBriefSummaries(n: number) {
       },
       _count: { select: { developments: true } },
     },
-  });
+  }).catch(() => []);
 }
 
 async function findRelevantDevelopment(message: string) {
@@ -199,7 +203,8 @@ async function findRelevantDevelopment(message: string) {
       ideas: { take: 3, select: { type: true, text: true } },
       brief: { select: { date: true } },
     },
-  });
+  }).catch(() => []);
+  if (devs.length === 0) return undefined;
   const lower = message.toLowerCase();
   const scored = devs.map((d) => ({ dev: d, score: fuzzyScore(lower, d.title) }));
   scored.sort((a, b) => b.score - a.score);
@@ -312,10 +317,12 @@ function extractSourceType(msg: string): string {
 // ── System prompt ─────────────────────────────────────────────────────────
 
 function buildSystemPrompt(ctx: LoadedContext, today: string): string {
-  const felloRaw = ctx.contextDocs.find((d) => d.type === "FELLO")?.content ?? "Not configured.";
-  const gtmRaw = ctx.contextDocs.find((d) => d.type === "GTM")?.content ?? "Not configured.";
-  const felloCtx = truncate(felloRaw, 3200); // ~800 tokens
-  const gtmCtx = truncate(gtmRaw, 2400);     // ~600 tokens
+  const fellaDoc = ctx.contextDocs.find((d) => d.type === "FELLO");
+  const gtmDoc = ctx.contextDocs.find((d) => d.type === "GTM");
+  const felloRaw = fellaDoc?.content ?? "Fello is an AI-powered marketing platform for real estate professionals that turns dormant CRM databases into active deal pipelines (Enrich, Automate, Convert).";
+  const gtmRaw = gtmDoc?.content ?? "The GTM AI team at Fello builds internal AI-powered tools and workflows. They prototype fast — days, not weeks.";
+  const felloCtx = truncate(felloRaw, 3200);
+  const gtmCtx = truncate(gtmRaw, 2400);
 
   const dataSections: string[] = [];
 
@@ -513,7 +520,7 @@ async function handleSetFocus(message: string): Promise<{ response: string; acti
   const focusMatch = lower.match(/(?:focus\s+(?:on|area|to)|set\s+focus\s+(?:on|to|area)|next\s+brief.*?(?:focus\s+on)?)\s+(.+)/);
   const focusArea = focusMatch ? focusMatch[1].trim().replace(/['"]/g, "") : message.slice(message.indexOf(" ") + 1).trim();
 
-  const latestBrief = await prisma.brief.findFirst({ orderBy: { date: "desc" }, select: { id: true } });
+  const latestBrief = await prisma.brief.findFirst({ orderBy: { date: "desc" }, select: { id: true } }).catch(() => null);
   if (!latestBrief) {
     return { response: "No brief found to set focus on.", action: null };
   }
@@ -600,10 +607,13 @@ export async function POST(request: NextRequest) {
   const userId = await resolveUserId(request);
   if (!userId) return Response.json({ success: false, error: "Unauthorized" }, { status: 401, headers: CORS });
 
-  const body = (await request.json()) as {
-    message: string;
-    conversationHistory: Array<{ role: "user" | "model"; text: string }>;
-  };
+  let body: { message: string; conversationHistory: Array<{ role: "user" | "model"; text: string }> };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch (parseError) {
+    console.error("[Chat API] Failed to parse request body:", parseError);
+    return Response.json({ success: false, error: "Invalid JSON body" }, { status: 400, headers: CORS });
+  }
 
   if (!body.message?.trim()) {
     return Response.json({ success: false, error: "Message required" }, { status: 400, headers: CORS });
@@ -641,18 +651,54 @@ export async function POST(request: NextRequest) {
     let isSlackDraft = false;
 
     if (intent === "DRAFT_SLACK") {
-      responseText = await generateSlackDraft(ctx, body.message, systemPrompt);
+      try {
+        responseText = await generateSlackDraft(ctx, body.message, systemPrompt);
+      } catch (geminiError) {
+        console.error("[Chat API] Gemini error (DRAFT_SLACK):", geminiError);
+        return Response.json({
+          success: true,
+          data: {
+            response: `Gemini error: ${geminiError instanceof Error ? geminiError.message : "API call failed"}`,
+            action: null,
+            isSlackDraft: false,
+          },
+        }, { headers: CORS });
+      }
       action = { type: "DRAFT_SLACK", description: "Slack message drafted" };
       isSlackDraft = true;
     } else if (intent === "STANDUP") {
-      responseText = await generateStandup(ctx, systemPrompt, today);
+      try {
+        responseText = await generateStandup(ctx, systemPrompt, today);
+      } catch (geminiError) {
+        console.error("[Chat API] Gemini error (STANDUP):", geminiError);
+        return Response.json({
+          success: true,
+          data: {
+            response: `Gemini error: ${geminiError instanceof Error ? geminiError.message : "API call failed"}`,
+            action: null,
+            isSlackDraft: false,
+          },
+        }, { headers: CORS });
+      }
       action = { type: "STANDUP", description: "Standup generated" };
     } else {
-      responseText = await generateChatResponse(
-        systemPrompt,
-        (body.conversationHistory ?? []).slice(-10),
-        body.message
-      );
+      try {
+        responseText = await generateChatResponse(
+          systemPrompt,
+          (body.conversationHistory ?? []).slice(-10),
+          body.message
+        );
+      } catch (geminiError) {
+        console.error("[Chat API] Gemini error:", geminiError);
+        return Response.json({
+          success: true,
+          data: {
+            response: `Gemini error: ${geminiError instanceof Error ? geminiError.message : "API call failed"}`,
+            action: null,
+            isSlackDraft: false,
+          },
+        }, { headers: CORS });
+      }
     }
 
     return Response.json(
@@ -660,7 +706,16 @@ export async function POST(request: NextRequest) {
       { headers: CORS }
     );
   } catch (error) {
+    console.error("[Chat API] Error:", error);
+    console.error("[Chat API] Message:", error instanceof Error ? error.message : error);
     logger.error("Chat failed", { error: String(error) });
-    return Response.json({ success: false, error: "Failed to get response" }, { status: 500, headers: CORS });
+    return Response.json({
+      success: true,
+      data: {
+        response: `Error: ${error instanceof Error ? error.message : "Unknown error occurred"}`,
+        action: null,
+        isSlackDraft: false,
+      },
+    }, { headers: CORS });
   }
 }
