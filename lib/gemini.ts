@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const PRIMARY_MODEL = "gemini-2.0-flash";
-const FALLBACK_MODEL = "gemini-2.0-flash-lite";
+const PRIMARY_MODEL = "gemini-2.5-flash";
+const FALLBACK_MODEL = "gemini-2.5-flash-lite";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -31,15 +31,13 @@ export async function generateContent(
       const is503 = msg.includes("503");
       const is404 = msg.includes("404");
 
-      // 404 means wrong model name — do not retry
-      if (is404) {
-        throw new Error(`Model ${modelName} not found. Check model name.`);
-      }
-
-      // On 503, switch to fallback immediately rather than waiting
-      if (is503 && !useFallback) {
-        console.log("[Gemini] 503 detected — switching to fallback model");
-        return generateContent(prompt, true);
+      // 404 or 503 — switch to fallback immediately, no point retrying
+      if (is404 || is503) {
+        if (!useFallback) {
+          console.log("[Gemini] Switching to fallback model immediately");
+          return generateContent(prompt, true);
+        }
+        throw new Error(`Both models failed. Last error: ${msg}`);
       }
 
       if (attempts >= maxAttempts) {
@@ -50,7 +48,7 @@ export async function generateContent(
         throw error;
       }
 
-      const delay = is503 ? 5000 : 2000;
+      const delay = 2000 * attempts;
       console.log(`[Gemini] Retrying in ${delay / 1000}s...`);
       await new Promise((r) => setTimeout(r, delay));
     }
