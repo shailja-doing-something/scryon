@@ -587,6 +587,7 @@ export async function runDailyBrief(focusArea = ""): Promise<string> {
     logger.info("Brief generation complete", { briefId: brief.id, developments: topDevelopments.length });
     return brief.id;
   } catch (err) {
+    console.error("[Pipeline] Failed:", err);
     logger.error("Brief generation failed", { briefId: brief.id, error: String(err) });
     await prisma.brief.update({
       where: { id: brief.id },

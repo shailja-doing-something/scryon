@@ -24,6 +24,17 @@ export default async function DashboardPage() {
     },
   });
 
+  // Check for a failed brief more recent than the last ready one
+  const failedBrief = await prisma.brief.findFirst({
+    where: { status: "FAILED" },
+    orderBy: { generatedAt: "desc" },
+    select: { id: true, generatedAt: true },
+  });
+
+  const hasFailed =
+    !!failedBrief &&
+    (!brief || new Date(failedBrief.generatedAt) > new Date(brief.date));
+
   const patternSummary = await prisma.pattern.findMany({
     where: { frequency: { gte: 3 } },
     orderBy: { frequency: "desc" },
@@ -36,6 +47,7 @@ export default async function DashboardPage() {
       brief={brief}
       patternSummary={patternSummary}
       currentUserId={session!.id}
+      hasFailed={hasFailed}
     />
   );
 }

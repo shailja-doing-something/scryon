@@ -63,6 +63,7 @@ interface Props {
   brief: Brief | null;
   patternSummary: Pattern[];
   currentUserId: string;
+  hasFailed?: boolean;
 }
 
 // Filter labels — "All" is the selector that shows everything
@@ -79,7 +80,7 @@ function timeAgo(date: Date | string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export function DashboardClient({ brief, patternSummary, currentUserId }: Props) {
+export function DashboardClient({ brief, patternSummary, currentUserId, hasFailed }: Props) {
   const [focusArea, setFocusArea] = useState(brief?.focusArea ?? "");
   const [generating, setGenerating] = useState(false);
   const [slackCopied, setSlackCopied] = useState(false);
@@ -201,6 +202,41 @@ export function DashboardClient({ brief, patternSummary, currentUserId }: Props)
 
   return (
     <div className="space-y-5">
+      {/* Failed brief banner */}
+      {hasFailed && (
+        <div
+          className="flex items-center justify-between animate-fade-up"
+          style={{
+            background: "#1A0F0F",
+            border: "1px solid #3D1515",
+            borderLeft: "3px solid #EF4444",
+            borderRadius: 12,
+            padding: "14px 20px",
+          }}
+        >
+          <span style={{ fontSize: 13, color: "#F87171" }}>
+            Today&apos;s brief failed to generate — Gemini was unavailable.
+          </span>
+          <button
+            onClick={handleRegenerate}
+            disabled={generating}
+            className="flex items-center gap-1.5 disabled:opacity-40"
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: "#F87171",
+              background: "rgba(239,68,68,0.12)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: 8,
+              padding: "6px 14px",
+              cursor: "pointer",
+            }}
+          >
+            {generating ? "Generating…" : "Try again"}
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="animate-fade-up">
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
