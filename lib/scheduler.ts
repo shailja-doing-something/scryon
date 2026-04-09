@@ -5,14 +5,18 @@ import { runDailyBrief } from "./intelligence";
 let currentJob: ScheduledTask | null = null;
 
 export async function startScheduler() {
+  console.log("[Scheduler] Starting...");
   try {
     const settings = await prisma.settings.findFirst();
+    console.log("[Scheduler] Settings found:", settings ? "yes" : "no");
     const time = settings?.briefTime ?? "08:00";
     const timezone = settings?.timezone ?? "America/New_York";
+    console.log(`[Scheduler] Will run at ${time} ${timezone}`);
     scheduleJob(time, timezone);
   } catch (error) {
-    console.error("[Scryon Scheduler] Failed to read settings on startup:", error);
-    scheduleJob("08:00", "America/New_York");
+    console.error("[Scheduler] Error reading settings:", error);
+    console.log("[Scheduler] Falling back to 08:00 UTC");
+    scheduleJob("08:00", "UTC");
   }
 }
 
@@ -20,6 +24,7 @@ export function scheduleJob(time: string, timezone: string) {
   if (currentJob) {
     currentJob.stop();
     currentJob = null;
+    console.log("[Scheduler] Stopped previous job.");
   }
 
   const parts = time.split(":");
@@ -27,23 +32,24 @@ export function scheduleJob(time: string, timezone: string) {
   const minutes = parts[1] ?? "0";
   const cronExpression = `${minutes} ${hours} * * *`;
 
-  console.log(
-    `[Scryon Scheduler] Scheduling brief at ${time} ${timezone} — cron: ${cronExpression}`
-  );
+  console.log(`[Scheduler] Cron expression: ${cronExpression}`);
+  console.log(`[Scheduler] Timezone: ${timezone}`);
 
   currentJob = cron.schedule(
     cronExpression,
     async () => {
-      console.log("[Scryon Scheduler] Firing brief generation...");
+      console.log("[Scheduler] FIRING — starting brief generation");
       try {
         await runDailyBrief();
-        console.log("[Scryon Scheduler] Brief generation complete.");
+        console.log("[Scheduler] Brief generation complete.");
       } catch (error) {
-        console.error("[Scryon Scheduler] Brief generation failed:", error);
+        console.error("[Scheduler] Brief generation failed:", error);
       }
     },
     { timezone }
   );
+
+  console.log("[Scheduler] Job scheduled successfully.");
 }
 
 export function restartWithNewTime(time: string, timezone: string) {

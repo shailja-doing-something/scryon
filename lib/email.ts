@@ -9,12 +9,20 @@ interface SendResult {
 }
 
 export async function sendBriefDigest(briefId: string): Promise<SendResult> {
+  console.log("[Email] Resend key present:", !!process.env.RESEND_API_KEY);
   const resend = new Resend(process.env.RESEND_API_KEY);
+
   // ── Read settings ──────────────────────────────────────────────
-  console.log("[Email] Checking settings for email digest...");
+  console.log("[Email] Starting email digest check...");
 
   const settings = await prisma.settings.findFirst({
     where: { user: { role: "OWNER" } },
+  });
+
+  console.log("[Email] Settings:", {
+    emailDigest: settings?.emailDigest,
+    recipients: settings?.emailRecipients,
+    hasResendKey: !!process.env.RESEND_API_KEY,
   });
 
   if (!settings) {
@@ -22,11 +30,8 @@ export async function sendBriefDigest(briefId: string): Promise<SendResult> {
     return { success: true, skipped: "no settings" };
   }
 
-  console.log("[Email] emailDigest enabled:", settings.emailDigest);
-  console.log("[Email] recipients raw:", settings.emailRecipients);
-
   if (!settings.emailDigest) {
-    console.log("[Email] Email digest disabled, skipping.");
+    console.log("[Email] Digest disabled, skipping.");
     return { success: true, skipped: "digest disabled" };
   }
 
@@ -34,7 +39,9 @@ export async function sendBriefDigest(briefId: string): Promise<SendResult> {
   try {
     const parsed: unknown = JSON.parse(settings.emailRecipients);
     if (Array.isArray(parsed)) {
-      recipients = (parsed as unknown[]).filter((r): r is string => typeof r === "string" && r.trim().length > 0);
+      recipients = (parsed as unknown[]).filter(
+        (r): r is string => typeof r === "string" && r.trim().length > 0
+      );
     }
   } catch {
     recipients = settings.emailRecipients
@@ -153,10 +160,10 @@ export async function sendBriefDigest(briefId: string): Promise<SendResult> {
   });
 
   if (error) {
-    console.error("[Email] Resend error:", error);
+    console.error("[Email] Resend error:", JSON.stringify(error));
     return { success: false, error: JSON.stringify(error) };
   }
 
-  console.log("[Email] Sent successfully:", data?.id);
+  console.log("[Email] Sent successfully. ID:", data?.id);
   return { success: true, id: data?.id };
 }
