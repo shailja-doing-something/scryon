@@ -85,6 +85,14 @@ function extractIdeaDescription(idea: Record<string, unknown>): string {
   return extractString(idea, "description", "desc", "details", "body", "summary", "text", "content");
 }
 
+// Strip CDATA wrappers and HTML tags from RSS text content
+function cleanRssText(raw: string): string {
+  return raw
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+    .replace(/<[^>]+>/g, "")
+    .trim();
+}
+
 // STEP 1: Collect raw AI news from web searches
 async function collectSources(focusArea: string): Promise<RawCandidate[]> {
   const today = new Date().toLocaleDateString("en-US", {
@@ -139,12 +147,30 @@ async function collectSources(focusArea: string): Promise<RawCandidate[]> {
         const res = await fetch(src.url, { signal: AbortSignal.timeout(8000) });
         if (res.ok) {
           const text = await res.text();
-          // Simple title extraction from RSS/HTML
-          const titleMatches = text.match(/<title[^>]*>([^<]+)<\/title>/gi) ?? [];
-          for (const match of titleMatches.slice(0, 5)) {
-            const title = match.replace(/<[^>]+>/g, "").trim();
+
+          // Extract individual <item> (RSS) or <entry> (Atom) blocks — not the channel title
+          const itemBlocks =
+            text.match(/<item[\s\S]*?<\/item>/gi) ??
+            text.match(/<entry[\s\S]*?<\/entry>/gi) ??
+            [];
+
+          for (const block of itemBlocks.slice(0, 6)) {
+            const titleMatch = block.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+            const linkMatch =
+              block.match(/<link[^>]*>(https?:\/\/[^\s<]+)<\/link>/i) ??
+              block.match(/<link[^>]+href="([^"]+)"/i);
+            const descMatch =
+              block.match(/<description[^>]*>([\s\S]*?)<\/description>/i) ??
+              block.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i);
+
+            const title = titleMatch ? cleanRssText(titleMatch[1]) : "";
+            const articleUrl = linkMatch ? linkMatch[1].trim() : src.url;
+            const summary = descMatch
+              ? cleanRssText(descMatch[1]).slice(0, 200)
+              : "";
+
             if (title && title.length > 10) {
-              candidates.push({ title, summary: "", url: src.url, source: src.label });
+              candidates.push({ title, summary, url: articleUrl, source: src.label });
             }
           }
         }
@@ -173,17 +199,31 @@ async function collectSources(focusArea: string): Promise<RawCandidate[]> {
   return deduped.slice(0, 50);
 }
 
-// STEP 2: Filter to top 10 most significant
+// STEP 2: Filter to top 10 most significant, avoiding recently covered topics
 async function filterDevelopments(
-  candidates: RawCandidate[]
+  candidates: RawCandidate[],
+  recentTitles: string[]
 ): Promise<FilteredDevelopment[]> {
   const candidateList = candidates
     .map((c, i) => `${i + 1}. Title: ${c.title}\n   Summary: ${c.summary}\n   URL: ${c.url}`)
     .join("\n\n");
 
+  const recentTitlesBlock =
+    recentTitles.length > 0
+      ? `\nThese developments have already been covered in the last 7 days — do not include them or anything substantially similar:\n${recentTitles.join("\n")}\n\nPrioritise genuinely new developments. If today's sources are mostly repeating recent topics, lower their scores significantly and look for fresher signal. If a topic is very similar to something covered in the last 3 days, cap its relevance score at 4 even if it is a different article. We want fresh signal, not recurring themes.\n`
+      : "";
+
   const prompt = `You are a ruthless AI signal filter. From these candidates, identify the 10 most significant AI developments of today.
 Reject: repackaged old news, vague announcements, incremental updates, pure marketing.
 
+TITLE RULES — this is critical:
+- The title must be the actual headline or name of the development — specific and descriptive.
+- Never use a source name like "Hugging Face Blog" or "OpenAI News" as the title.
+- Good title: "Hugging Face releases SmolLM2, a 1.7B parameter model that runs on-device"
+- Bad title: "Hugging Face - Blog"
+- Bad title: "OpenAI announces new features"
+- If the source title is generic, rewrite it to be specific based on the article content or summary.
+${recentTitlesBlock}
 Score each on 4 axes (1–10):
 1. relevance: touches database marketing, CRM enrichment, AI nurture, lead scoring, or personalisation at scale
 2. deployability: can a team prototype this within 30 days
@@ -210,7 +250,7 @@ Return top 10 ranked by weighted total as a JSON array with this shape:
   }
 }]
 
-Respond with valid JSON only. No markdown, no backticks, no explanation. Just the raw JSON object.`;
+Respond with valid JSON only. No markdown, no backticks, no explanation. Just the raw JSON array.`;
 
   const raw = await generateContent(prompt);
 
@@ -218,7 +258,6 @@ Respond with valid JSON only. No markdown, no backticks, no explanation. Just th
   try {
     parsed = JSON.parse(raw) as FilteredDevelopment[];
   } catch {
-    // Try to extract JSON array from response
     const match = raw.match(/\[[\s\S]*\]/);
     if (!match) throw new Error("Failed to parse filter response");
     parsed = JSON.parse(match[0]) as FilteredDevelopment[];
@@ -492,7 +531,6 @@ async function notifyUsers(briefId: string) {
 
 async function updatePatterns(briefId: string, developments: FilteredDevelopment[]) {
   try {
-    // Extract themes from development titles
     const themes = developments.map((d) => {
       const words = d.title.toLowerCase().split(/\s+/);
       return words.filter((w) => w.length > 4).slice(0, 3).join(" ");
@@ -505,7 +543,6 @@ async function updatePatterns(briefId: string, developments: FilteredDevelopment
           where: { id: existing.id },
           data: { frequency: { increment: 1 } },
         });
-        // Link brief to pattern if not already linked
         await prisma.patternBrief.upsert({
           where: { patternId_briefId: { patternId: existing.id, briefId } },
           update: {},
@@ -527,7 +564,30 @@ async function updatePatterns(briefId: string, developments: FilteredDevelopment
 
 // Main pipeline
 export async function runDailyBrief(focusArea = ""): Promise<string> {
-  // Create a pending brief first
+  // Guard: skip if a READY brief already exists for today
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const existingBrief = await prisma.brief.findFirst({
+    where: { generatedAt: { gte: today }, status: "READY" },
+  });
+
+  if (existingBrief) {
+    console.log("[Pipeline] Brief already generated today, skipping.", existingBrief.id);
+    return existingBrief.id;
+  }
+
+  // Guard: skip if a run is already in progress
+  const inProgress = await prisma.brief.findFirst({
+    where: { status: "PENDING" },
+  });
+
+  if (inProgress) {
+    console.log("[Pipeline] Brief generation already in progress, skipping.");
+    return inProgress.id;
+  }
+
+  // Create a pending brief to claim the slot
   const brief = await prisma.brief.create({
     data: { focusArea, status: "PENDING" },
   });
@@ -556,14 +616,27 @@ export async function runDailyBrief(focusArea = ""): Promise<string> {
       return brief.id;
     }
 
+    // Load titles from the last 7 days to avoid repetition
+    const recentDevelopments = await prisma.development.findMany({
+      where: {
+        brief: {
+          generatedAt: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          },
+        },
+      },
+      select: { title: true },
+    });
+    const recentTitles = recentDevelopments.map((d) => d.title);
+    logger.info("Loaded recent titles for deduplication", { count: recentTitles.length });
+
     // Step 2: Filter
-    const topDevelopments = await filterDevelopments(candidates);
+    const topDevelopments = await filterDevelopments(candidates, recentTitles);
 
     // Step 3: Generate all recommendations in a single Gemini call (conserves quota)
     let recommendations: GeneratedRecommendation[];
     try {
       recommendations = await generateAllRecommendations(topDevelopments, fellaContext, gtmContext);
-      // Pad with empty fallbacks if Gemini returned fewer objects than developments
       while (recommendations.length < topDevelopments.length) {
         recommendations.push({ fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "", whyNow: "" });
       }
