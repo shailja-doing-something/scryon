@@ -1,7 +1,7 @@
+import { Resend } from "resend";
 import { prisma } from "@/lib/prisma";
 import { generateContent } from "@/lib/gemini";
 import { logger } from "@/lib/logger";
-import { sendBriefDigest } from "@/lib/email";
 
 interface RawCandidate {
   title: string;
@@ -46,6 +46,21 @@ interface TopAction {
   developmentTitle: string;
 }
 
+interface BriefForEmail {
+  id: string;
+  date: Date;
+  topActions: string | null;
+}
+
+interface DevelopmentForEmail {
+  rank: number;
+  title: string;
+  scores: string;
+  whyNow: string | null;
+  fitInFello: string;
+  ideas: { id: string }[];
+}
+
 // Normalise whichTeam to one of the four canonical values
 function normaliseTeam(raw: string): string {
   const lower = raw.toLowerCase();
@@ -55,7 +70,12 @@ function normaliseTeam(raw: string): string {
     return "Product";
   if (lower.includes("both") || lower.includes("all") || lower.includes("entire"))
     return "Both";
-  if (lower.includes("leader") || lower.includes("execut") || lower.includes("strategic") || lower.includes("management"))
+  if (
+    lower.includes("leader") ||
+    lower.includes("execut") ||
+    lower.includes("strategic") ||
+    lower.includes("management")
+  )
     return "Leadership";
   return "Both";
 }
@@ -91,6 +111,121 @@ function cleanRssText(raw: string): string {
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/<[^>]+>/g, "")
     .trim();
+}
+
+// Build HTML email body
+function buildEmailHtml(brief: BriefForEmail, developments: DevelopmentForEmail[]): string {
+  const top5 = [...developments]
+    .sort((a, b) => {
+      const aScore = (JSON.parse(a.scores || "{}") as { weighted?: number }).weighted ?? 0;
+      const bScore = (JSON.parse(b.scores || "{}") as { weighted?: number }).weighted ?? 0;
+      return bScore - aScore;
+    })
+    .slice(0, 5);
+
+  const devRows = top5
+    .map(
+      (d, i) => `
+    <tr>
+      <td style="padding: 12px 0; border-bottom: 1px solid #2A2A45;">
+        <div style="display: flex; gap: 12px; align-items: flex-start;">
+          <div style="
+            width: 24px; height: 24px; background: #7B5CF0;
+            border-radius: 6px; color: white; font-size: 11px;
+            font-weight: 600; text-align: center; line-height: 24px;
+            flex-shrink: 0;
+          ">${i + 1}</div>
+          <div>
+            <p style="margin: 0 0 4px; font-size: 14px; font-weight: 500; color: #F0F0FF;">
+              ${d.title}
+            </p>
+            ${
+              d.whyNow
+                ? `<p style="margin: 0; font-size: 12px; color: #F59E0B; font-style: italic;">${d.whyNow}</p>`
+                : ""
+            }
+          </div>
+        </div>
+      </td>
+    </tr>`
+    )
+    .join("");
+
+  let actionsHtml = "";
+  if (brief.topActions) {
+    try {
+      const parsed = JSON.parse(brief.topActions) as { actions?: TopAction[] };
+      const actions = parsed.actions ?? [];
+      actionsHtml = actions
+        .map(
+          (a, i) => `
+        <p style="margin: 0 0 8px; font-size: 13px; color: #F0F0FF;">
+          ${i + 1}. ${a.action}
+          <span style="color: #7B5CF0; margin-left: 8px;">→ ${a.timeEstimate}</span>
+        </p>`
+        )
+        .join("");
+    } catch {
+      actionsHtml = "";
+    }
+  }
+
+  const appUrl = process.env.NEXTAUTH_URL ?? "https://scryon.app";
+  const dateLabel = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+
+  return `<!DOCTYPE html>
+<html>
+<body style="margin: 0; padding: 0; background: #080810; font-family: -apple-system, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 32px 24px;">
+
+    <div style="margin-bottom: 24px;">
+      <p style="margin: 0 0 4px; font-size: 11px; color: #8888AA; letter-spacing: 0.08em; text-transform: uppercase;">
+        SCRYON BRIEF
+      </p>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 500; color: #F0F0FF;">${dateLabel}</h1>
+    </div>
+
+    <div style="background: #0F0F1A; border: 1px solid #2A2A45; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;">
+      <p style="margin: 0 0 16px; font-size: 11px; color: #8888AA; letter-spacing: 0.08em; text-transform: uppercase;">
+        TOP DEVELOPMENTS TODAY
+      </p>
+      <table style="width: 100%; border-collapse: collapse;">
+        ${devRows}
+      </table>
+    </div>
+
+    ${
+      actionsHtml
+        ? `<div style="background: #0F0F1A; border: 1px solid #2A2A45; border-left: 3px solid #7B5CF0; border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;">
+      <p style="margin: 0 0 16px; font-size: 11px; color: #8888AA; letter-spacing: 0.08em; text-transform: uppercase;">
+        TOP ACTIONS TODAY
+      </p>
+      ${actionsHtml}
+    </div>`
+        : ""
+    }
+
+    <div style="text-align: center; margin-top: 32px;">
+      <a href="${appUrl}/dashboard"
+        style="display: inline-block; background: linear-gradient(135deg, #7B5CF0, #A78BFA);
+        color: white; padding: 12px 24px; border-radius: 8px;
+        text-decoration: none; font-size: 14px; font-weight: 500;">
+        View Full Brief
+      </a>
+    </div>
+
+    <p style="margin-top: 32px; font-size: 11px; color: #55557A; text-align: center;">
+      Scryon · Fello.ai GTM AI Team ·
+      <a href="${appUrl}/settings" style="color: #7B5CF0; text-decoration: none;">Manage preferences</a>
+    </p>
+
+  </div>
+</body>
+</html>`;
 }
 
 // STEP 1: Collect raw AI news from web searches
@@ -148,7 +283,12 @@ async function collectSources(focusArea: string): Promise<RawCandidate[]> {
         if (res.ok) {
           const text = await res.text();
 
-          // Extract individual <item> (RSS) or <entry> (Atom) blocks — not the channel title
+          // Extract feed/channel title for logging only — never used as candidate title
+          const feedTitleMatch = text.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+          const feedTitle = feedTitleMatch ? cleanRssText(feedTitleMatch[1]) : src.label;
+          console.log("[RSS] Feed title:", feedTitle);
+
+          // Extract individual <item> (RSS) or <entry> (Atom) blocks
           const itemBlocks =
             text.match(/<item[\s\S]*?<\/item>/gi) ??
             text.match(/<entry[\s\S]*?<\/entry>/gi) ??
@@ -163,14 +303,14 @@ async function collectSources(focusArea: string): Promise<RawCandidate[]> {
               block.match(/<description[^>]*>([\s\S]*?)<\/description>/i) ??
               block.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i);
 
-            const title = titleMatch ? cleanRssText(titleMatch[1]) : "";
+            const itemTitle = titleMatch ? cleanRssText(titleMatch[1]) : "";
             const articleUrl = linkMatch ? linkMatch[1].trim() : src.url;
-            const summary = descMatch
-              ? cleanRssText(descMatch[1]).slice(0, 200)
-              : "";
+            const summary = descMatch ? cleanRssText(descMatch[1]).slice(0, 200) : "";
 
-            if (title && title.length > 10) {
-              candidates.push({ title, summary, url: articleUrl, source: src.label });
+            console.log("[RSS] Item title:", itemTitle);
+
+            if (itemTitle && itemTitle.length > 10) {
+              candidates.push({ title: itemTitle, summary, url: articleUrl, source: src.label });
             }
           }
         }
@@ -210,19 +350,29 @@ async function filterDevelopments(
 
   const recentTitlesBlock =
     recentTitles.length > 0
-      ? `\nThese developments have already been covered in the last 7 days — do not include them or anything substantially similar:\n${recentTitles.join("\n")}\n\nPrioritise genuinely new developments. If today's sources are mostly repeating recent topics, lower their scores significantly and look for fresher signal. If a topic is very similar to something covered in the last 3 days, cap its relevance score at 4 even if it is a different article. We want fresh signal, not recurring themes.\n`
+      ? `\nThese developments have already been covered in the last 7 days — do not include them or anything substantially similar:\n${recentTitles.join("\n")}\n\nPrioritise genuinely new developments. If a topic has appeared in the last 3 days, cap its relevance score at 4 regardless of other factors.\n`
       : "";
 
   const prompt = `You are a ruthless AI signal filter. From these candidates, identify the 10 most significant AI developments of today.
 Reject: repackaged old news, vague announcements, incremental updates, pure marketing.
 
-TITLE RULES — this is critical:
-- The title must be the actual headline or name of the development — specific and descriptive.
-- Never use a source name like "Hugging Face Blog" or "OpenAI News" as the title.
-- Good title: "Hugging Face releases SmolLM2, a 1.7B parameter model that runs on-device"
-- Bad title: "Hugging Face - Blog"
-- Bad title: "OpenAI announces new features"
-- If the source title is generic, rewrite it to be specific based on the article content or summary.
+CRITICAL RULE FOR TITLES:
+Every development title must be the specific article or announcement headline — never the source or feed name.
+
+Examples of WRONG titles:
+- "LangChain Blog"
+- "Hugging Face - Blog"
+- "OpenAI News"
+- "GitHub Trending"
+- "The Batch"
+
+Examples of CORRECT titles:
+- "Gemma 4: Byte for byte, the most capable open models"
+- "Google updates Workspace to make AI your new office intern"
+- "LangChain releases LangGraph 0.4 with persistent memory"
+- "Hugging Face open-sources SmolVLM, a 2B vision model"
+
+If the raw source title is a feed name or blog name rather than an article headline, you MUST rewrite it into a specific descriptive headline based on the article content provided. A good title names the specific thing that happened, could stand alone as a news headline, is 6–15 words long, and contains a subject (who/what) and an action or descriptor.
 ${recentTitlesBlock}
 Score each on 4 axes (1–10):
 1. relevance: touches database marketing, CRM enrichment, AI nurture, lead scoring, or personalisation at scale
@@ -355,7 +505,14 @@ Rules:
       fitInFello: extractString(parsed, "fitInFello", "fit_in_fello", "fitFello", "fit"),
       whichTeam: extractString(parsed, "whichTeam", "which_team", "team"),
       ideas,
-      prototypeThis: extractString(parsed, "prototypeThis", "prototype_this", "prototype", "buildThis", "build_this"),
+      prototypeThis: extractString(
+        parsed,
+        "prototypeThis",
+        "prototype_this",
+        "prototype",
+        "buildThis",
+        "build_this"
+      ),
       ignoreConsequence: extractString(
         parsed,
         "ignoreConsequence",
@@ -473,7 +630,6 @@ async function saveBrief(
           },
         });
 
-        // Save all ideas — stored as "title\ndescription", type comes directly from each item
         for (const idea of rec.ideas ?? []) {
           const title = idea.title?.trim() ?? "";
           const descParts = [idea.description?.trim(), idea.timing?.trim()].filter(Boolean);
@@ -500,6 +656,7 @@ async function saveBrief(
 
 // STEP 5: Notify users + send email digest
 async function notifyUsers(briefId: string) {
+  // In-app notifications
   try {
     const users = await prisma.user.findMany({ select: { id: true } });
     await prisma.notification.createMany({
@@ -515,16 +672,113 @@ async function notifyUsers(briefId: string) {
     logger.error("Failed to create notifications", { error: String(err) });
   }
 
+  // Email digest
   try {
-    const result = await sendBriefDigest(briefId);
-    if (result.skipped) {
-      logger.info("Email digest skipped", { reason: result.skipped, briefId });
-    } else if (result.success) {
-      logger.info("Email digest sent", { emailId: result.id, briefId });
+    console.log("[Email] Reading settings...");
+    const settings = await prisma.settings.findFirst({
+      where: { user: { role: "OWNER" } },
+    });
+    console.log("[Email] Settings found:", !!settings);
+    console.log("[Email] emailDigest:", settings?.emailDigest);
+    console.log("[Email] emailRecipients:", settings?.emailRecipients);
+    console.log("[Email] RESEND_API_KEY present:", !!process.env.RESEND_API_KEY);
+
+    if (!settings) {
+      console.log("[Email] No settings found, skipping.");
+      return;
+    }
+
+    if (!settings.emailDigest) {
+      console.log("[Email] Digest disabled, skipping.");
+      return;
+    }
+
+    let recipients: string[] = [];
+
+    if (Array.isArray(settings.emailRecipients)) {
+      recipients = (settings.emailRecipients as string[]).filter((e) => e.trim().length > 0);
+    } else if (typeof settings.emailRecipients === "string") {
+      // Could be a JSON array string or a comma-separated string
+      try {
+        const parsed: unknown = JSON.parse(settings.emailRecipients);
+        if (Array.isArray(parsed)) {
+          recipients = (parsed as unknown[]).filter(
+            (r): r is string => typeof r === "string" && r.trim().length > 0
+          );
+        } else {
+          recipients = settings.emailRecipients
+            .split(",")
+            .map((e) => e.trim())
+            .filter((e) => e.length > 0);
+        }
+      } catch {
+        recipients = settings.emailRecipients
+          .split(",")
+          .map((e) => e.trim())
+          .filter((e) => e.length > 0);
+      }
+    }
+
+    console.log("[Email] Parsed recipients:", recipients);
+
+    if (recipients.length === 0) {
+      console.log("[Email] No valid recipients, skipping.");
+      return;
+    }
+
+    // Fetch brief + developments for email
+    const brief = await prisma.brief.findUnique({
+      where: { id: briefId },
+      select: { id: true, date: true, topActions: true },
+    });
+
+    if (!brief) {
+      console.log("[Email] Brief not found:", briefId);
+      return;
+    }
+
+    const developments = await prisma.development.findMany({
+      where: { briefId },
+      orderBy: { rank: "asc" },
+      take: 5,
+      select: {
+        rank: true,
+        title: true,
+        scores: true,
+        whyNow: true,
+        fitInFello: true,
+        ideas: { select: { id: true } },
+      },
+    });
+
+    const html = buildEmailHtml(brief, developments);
+
+    const formattedDate = new Date().toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    console.log("[Email] Attempting to send via Resend...");
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { data, error } = await resend.emails.send({
+      from: "Scryon <onboarding@resend.dev>",
+      to: recipients,
+      subject: `Scryon Intel — ${formattedDate}`,
+      html,
+    });
+
+    if (error) {
+      console.error("[Email] Resend error:", JSON.stringify(error, null, 2));
+      logger.error("Email digest failed", { error: JSON.stringify(error), briefId });
     } else {
-      logger.error("Email digest failed", { error: result.error, briefId });
+      console.log("[Email] Sent successfully. ID:", data?.id);
+      console.log("[Email] Sent to:", recipients);
+      logger.info("Email digest sent", { emailId: data?.id, briefId });
     }
   } catch (err) {
+    console.error("[Email] Unexpected error:", err);
     logger.error("Email digest threw", { error: String(err), briefId });
   }
 }
@@ -638,12 +892,24 @@ export async function runDailyBrief(focusArea = ""): Promise<string> {
     try {
       recommendations = await generateAllRecommendations(topDevelopments, fellaContext, gtmContext);
       while (recommendations.length < topDevelopments.length) {
-        recommendations.push({ fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "", whyNow: "" });
+        recommendations.push({
+          fitInFello: "",
+          whichTeam: "",
+          ideas: [],
+          prototypeThis: "",
+          ignoreConsequence: "",
+          whyNow: "",
+        });
       }
     } catch (err) {
       logger.error("Batch recommendation generation failed", { error: String(err) });
       recommendations = topDevelopments.map(() => ({
-        fitInFello: "", whichTeam: "", ideas: [], prototypeThis: "", ignoreConsequence: "", whyNow: "",
+        fitInFello: "",
+        whichTeam: "",
+        ideas: [],
+        prototypeThis: "",
+        ignoreConsequence: "",
+        whyNow: "",
       }));
     }
 
@@ -657,7 +923,10 @@ export async function runDailyBrief(focusArea = ""): Promise<string> {
     void notifyUsers(brief.id);
     void updatePatterns(brief.id, topDevelopments);
 
-    logger.info("Brief generation complete", { briefId: brief.id, developments: topDevelopments.length });
+    logger.info("Brief generation complete", {
+      briefId: brief.id,
+      developments: topDevelopments.length,
+    });
     return brief.id;
   } catch (err) {
     console.error("[Pipeline] Failed:", err);
